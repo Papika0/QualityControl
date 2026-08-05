@@ -215,13 +215,16 @@ export function NewDefectDialog({
           })
         },
         // A failed write used to do nothing at all on screen — the inspector had
-        // no way to tell a full disk from a dead button.
-        onError: (err) =>
+        // no way to tell a full disk from a dead button. The cause goes to the
+        // console; the toast stays in the language of the person on site.
+        onError: (err) => {
+          console.error('[qc] defect save failed', err)
           toast({
             kind: 'warn',
             title: 'ხარვეზი ვერ შეინახა',
-            desc: err instanceof Error ? err.message : 'ცადეთ ხელახლა',
-          }),
+            desc: 'მონაცემები ვერ ჩაიწერა მოწყობილობაზე — სცადეთ ხელახლა',
+          })
+        },
       },
     )
   }
