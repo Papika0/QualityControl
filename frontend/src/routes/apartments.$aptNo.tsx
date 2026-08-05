@@ -196,7 +196,7 @@ function ApartmentPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-mut-3">
-                          {pct > 0 ? PEOPLE[Math.floor(hash01(aptNo + s + 'w') * 7)] : '—'}
+                          {pct > 0 ? PEOPLE[Math.floor(hash01(aptNo + s + 'w') * PEOPLE.length)] : '—'}
                         </TableCell>
                       </TableRow>
                     )

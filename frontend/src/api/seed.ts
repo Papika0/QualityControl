@@ -24,7 +24,9 @@ import type { StoreName } from './schema'
 // v2 dropped the pre-written task comments — comments are hand-authored only.
 // v3 gave every seeded defect its own status history instead of one shared set
 // of dates hardcoded in the dialog.
-export const SEED_VERSION = 3
+// v4: the QA roster shrank from seven invented names to the three real members
+// in QA_TEAM, so every seeded `who` had to be regenerated.
+export const SEED_VERSION = 4
 
 /**
  * Stored rows carry an `ord` so lists come back in generated order rather than
@@ -169,7 +171,7 @@ function generateDefects(proj: ProjectId, no: string, count: number, baseOrd: nu
       room: ROOMS[Math.floor(hash01(k + 'r') * 5)]!,
       pri: (['high', 'med', 'low'] as Priority[])[Math.floor(hash01(k + 'p') * 3)]!,
       st: (['ღია', 'მიმდინარე', 'შემოწმებაზე', 'დახურული'] as const)[Math.floor(hash01(k + 's') * 4)]!,
-      who: PEOPLE[Math.floor(hash01(k + 'w') * 7)]!,
+      who: PEOPLE[Math.floor(hash01(k + 'w') * PEOPLE.length)]!,
       sub: SUBS[Math.floor(hash01(k + 'u') * 4)]!,
       due: `2026-0${7 + Math.floor(hash01(k + 'd') * 2)}-${String(4 + Math.floor(hash01(k + 'e') * 22)).padStart(2, '0')}`,
       // The corrective measure the filing form would have proposed for this

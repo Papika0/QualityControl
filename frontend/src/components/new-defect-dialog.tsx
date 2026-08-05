@@ -4,9 +4,10 @@ import { Camera, ChevronLeft, ImageIcon, Loader2, Pencil, Upload, Wand2, X } fro
 import { apartmentsQuery } from '@/api/queries'
 import { useCreateDefect } from '@/api/mutations'
 import { DEFECT_DUE_DAYS, addDays } from '@/api/client'
-import { CATS, PEOPLE, PRI_LABEL, RECO, SUBS, TODAY, type Defect, type Priority } from '@/data/domain'
+import { CATS, PRI_LABEL, QA_TEAM, RECO, SUBS, TODAY, type Defect, type Priority } from '@/data/domain'
 import { useSession } from '@/lib/session'
 import { useToast } from '@/lib/toast'
+import { sendDefectNotice } from '@/lib/notify'
 import { useBlobUrls } from '@/lib/blob-url'
 import type { Annotation } from '@/lib/annotate'
 import { preparePhoto, type PhotoSource, type PreparedPhoto } from '@/lib/image'
@@ -69,7 +70,7 @@ export function NewDefectDialog({
    *  anywhere in a 500-row list and would otherwise go unnoticed. */
   onCreated?: (defect: Defect) => void
 }) {
-  const { project } = useSession()
+  const { project, role } = useSession()
   const toast = useToast()
   const { data: apts } = useQuery(apartmentsQuery(project.id))
   const create = useCreateDefect()
@@ -79,7 +80,9 @@ export function NewDefectDialog({
   const [room, setRoom] = useState<string>(ROOM_OPTIONS[0]!)
   const [pri, setPri] = useState<Priority>('high')
   const [sub, setSub] = useState<string>(SUBS[0]!)
-  const [who, setWho] = useState<string>(PEOPLE[1]!)
+  // Held as a QA member id, not a name: the id is what the notify endpoint
+  // resolves to a mailbox. The defect record still stores the display name.
+  const [whoId, setWhoId] = useState<string>(QA_TEAM[0]!.id)
   const [due, setDue] = useState(addDays(TODAY, DEFECT_DUE_DAYS))
   const [reco, setReco] = useState<string | null>(null)
   const [channels, setChannels] = useState<ChannelId[]>(['push', 'email'])
@@ -97,6 +100,9 @@ export function NewDefectDialog({
     setChannels((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]))
 
   const channelLabels = CHANNELS.filter((c) => channels.includes(c.id)).map((c) => c.label)
+
+  /** The selected member's display name — what the defect record stores. */
+  const who = QA_TEAM.find((m) => m.id === whoId)!.name
 
   const addFiles = async (files: FileList | File[] | null, source: PhotoSource) => {
     const picked = [...(files ?? [])].filter((f) => f.type.startsWith('image/'))
@@ -198,6 +204,35 @@ export function NewDefectDialog({
     // coming back mounts a fresh textarea that has to be measured again.
   }, [desc, marking])
 
+  /**
+   * Mails the assigned QA member. Runs after the write has landed and is
+   * deliberately not awaited by it — a bounced address or a dead endpoint costs
+   * the notice, never the defect, and the inspector has already moved on.
+   */
+  const mail = async (defect: Defect) => {
+    const res = await sendDefectNotice({
+      assignee: whoId,
+      id: defect.id,
+      project: project.name,
+      apt,
+      floor,
+      room,
+      cat,
+      pri,
+      sub,
+      due: defect.due,
+      desc: desc.trim(),
+      filedBy: role?.name ?? 'QC Platform',
+      photos,
+    })
+    if (res.ok) {
+      toast({ kind: 'ok', title: 'ელფოსტა გაიგზავნა', desc: `${who} — ${res.to}` })
+    } else {
+      console.error('[qc] defect mail failed', res.error)
+      toast({ kind: 'warn', title: 'ელფოსტა ვერ გაიგზავნა', desc: res.error ?? 'უცნობი შეცდომა' })
+    }
+  }
+
   const submit = () => {
     if (create.isPending || preparing > 0) return
     create.mutate(
@@ -207,14 +242,19 @@ export function NewDefectDialog({
         onSuccess: (defect) => {
           onCreated?.(defect)
           onClose()
-          const sent = channelLabels.length
-            ? `${channelLabels.join(' + ')} გაეგზავნა შემსრულებელს და PM-ს`
-            : 'შეტყობინება არ გაგზავნილა'
+          // Email reports itself once Resend answers; the rest of the channels
+          // are still mocked, so they are only ever claimed as queued.
+          const queued = channelLabels.filter((l) => l !== 'Email')
+          const parts = [
+            photos.length ? `${photos.length} ფოტო შეინახა` : '',
+            queued.length ? `${queued.join(' + ')} გაეგზავნა` : '',
+          ].filter(Boolean)
           toast({
             kind: 'ok',
             title: `${defect.id} დაფიქსირდა`,
-            desc: photos.length ? `${photos.length} ფოტო შეინახა · ${sent}` : sent,
+            desc: parts.join(' · ') || 'ჩანაწერი შენახულია',
           })
+          if (channels.includes('email')) void mail(defect)
         },
         // A failed write used to do nothing at all on screen — the inspector had
         // no way to tell a full disk from a dead button. The cause goes to the
@@ -374,12 +414,12 @@ export function NewDefectDialog({
                 <Field label="პასუხისმგებელი QA">
                   <select
                     className={`${CONTROL} cursor-pointer`}
-                    value={who}
-                    onChange={(e) => setWho(e.target.value)}
+                    value={whoId}
+                    onChange={(e) => setWhoId(e.target.value)}
                   >
-                    {PEOPLE.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
+                    {QA_TEAM.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
                       </option>
                     ))}
                   </select>

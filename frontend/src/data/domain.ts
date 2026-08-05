@@ -193,7 +193,27 @@ export const RECO: Record<string, string> = {
   Other: 'აღწერეთ ხარვეზი და გამოსასწორებელი ღონისძიება.',
 }
 
-export const PEOPLE = ['ნ. ბერიძე', 'გ. კვარაცხელია', 'ლ. ჩხეიძე', 'ი. მაისურაძე', 'თ. აბულაძე', 'ზ. ხურციძე', 'მ. ლომიძე']
+export interface QaMember {
+  id: string
+  name: string
+}
+
+/**
+ * The QA members a defect can be assigned to. Filing one mails the person
+ * picked here, so the list is not cosmetic — `server/team.ts` holds the same
+ * three ids with their mailboxes, and the notify endpoint rejects an id it does
+ * not recognise. Adding somebody means adding them to both files.
+ *
+ * Addresses stay server-side: the browser only ever sends the id.
+ */
+export const QA_TEAM: QaMember[] = [
+  { id: 'guji', name: 'გუჯი გვენცაძე' },
+  { id: 'paata', name: 'პაატა გვათუა' },
+  { id: 'daniel', name: 'დანიელ პაპისმედოვი' },
+]
+
+/** Assignee names, for the places that only ever display or seed one. */
+export const PEOPLE = QA_TEAM.map((m) => m.name)
 
 export const SUBS = ['შპს ალიანს-მშენი', 'შპს ტექნო-ინსტალაცია', 'ი/მ ჯ. წიკლაური', 'შპს ფასად-პრო']
 
