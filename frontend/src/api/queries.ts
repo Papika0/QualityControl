@@ -20,14 +20,17 @@ export const defectsQuery = (proj: ProjectId) =>
     queryFn: () => api.defects.list(proj),
   })
 
-export const aptDefectsQuery = (proj: ProjectId, no: string, limit?: number) =>
+export const aptDefectsQuery = (proj: ProjectId, no: string) =>
   queryOptions({
-    queryKey: ['defects', proj, no, limit],
-    queryFn: () => api.defects.forApartment(proj, no, limit),
+    queryKey: ['defects', proj, no],
+    queryFn: () => api.defects.forApartment(proj, no),
   })
 
 export const tasksQuery = () =>
   queryOptions({ queryKey: ['tasks'], queryFn: () => api.tasks.list() })
+
+export const taskCommentsQuery = (taskId: string) =>
+  queryOptions({ queryKey: ['taskComments', taskId], queryFn: () => api.tasks.comments(taskId) })
 
 export const standardsQuery = () =>
   queryOptions({ queryKey: ['standards'], queryFn: () => api.standards.list() })
@@ -49,3 +52,6 @@ export const auditQuery = () =>
 
 export const usersQuery = () =>
   queryOptions({ queryKey: ['users'], queryFn: () => api.users.list() })
+
+export const storageQuery = () =>
+  queryOptions({ queryKey: ['storage'], queryFn: () => api.storage.isPersistent(), staleTime: Infinity })

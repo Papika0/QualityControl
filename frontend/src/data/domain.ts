@@ -77,6 +77,52 @@ export interface DocRow {
   st: string
 }
 
+export interface ArchiveRow {
+  id: string
+  ext: string
+  name: string
+  meta: string
+  amt: string
+  st: string
+}
+
+export interface ContractRow {
+  id: string
+  sub: string
+  scope: string
+  pct: number
+  amt: string
+  paid: string
+  st: string
+}
+
+export interface AuditRow {
+  id: string
+  /** 'YYYY-MM-DD HH:mm' — sorts lexicographically. */
+  t: string
+  action: string
+  detail: string
+  who: string
+}
+
+export interface UserRow {
+  ini: string
+  name: string
+  mail: string
+  role: string
+  scope: string
+  active: boolean
+}
+
+export interface TaskComment {
+  id: string
+  taskId: string
+  who: string
+  /** ISO local timestamp — formatted for display with `formatStamp`. */
+  at: string
+  text: string
+}
+
 export const ROLES: Role[] = [
   { id: 'admin', name: 'სისტემის ადმინისტრატორი', ini: 'სა', canFinance: true, canAdmin: true, scope: 'ყველა პროექტი, ყველა მოდული' },
   { id: 'techdir', name: 'ტექნიკური დირექტორი', ini: 'თდ', canFinance: true, canAdmin: false, scope: 'ყველა პროექტი' },
@@ -141,6 +187,22 @@ export const TASK_TYPES = [
 ]
 
 export const PRI_LABEL: Record<Priority, string> = { high: 'მაღალი', med: 'საშუალო', low: 'დაბალი' }
+
+/** Defect lifecycle, in order. Advancing a defect walks one step down this list. */
+export const DEFECT_FLOW: DefectStatus[] = ['ღია', 'მიმდინარე', 'შემოწმებაზე', 'დახურული']
+
+export function nextDefectStatus(st: DefectStatus): DefectStatus | null {
+  const i = DEFECT_FLOW.indexOf(st)
+  return i >= 0 && i < DEFECT_FLOW.length - 1 ? DEFECT_FLOW[i + 1]! : null
+}
+
+/** Kanban lifecycle, in order. */
+export const TASK_FLOW: TaskColumn[] = ['new', 'prog', 'check', 'done']
+
+export function nextTaskColumn(col: TaskColumn): TaskColumn | null {
+  const i = TASK_FLOW.indexOf(col)
+  return i >= 0 && i < TASK_FLOW.length - 1 ? TASK_FLOW[i + 1]! : null
+}
 
 /** Status → [background, foreground] chip colors. */
 export const STATUS_COLORS: Record<string, [string, string]> = {

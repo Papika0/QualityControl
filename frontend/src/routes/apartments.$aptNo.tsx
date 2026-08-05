@@ -3,7 +3,7 @@ import { Link, createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { Camera, FileDown } from 'lucide-react'
 import { apartmentQuery, aptDefectsQuery } from '@/api/queries'
-import { PEOPLE, STAGES, type Defect } from '@/data/domain'
+import { PEOPLE, STAGES } from '@/data/domain'
 import { useSession } from '@/lib/session'
 import { PageHeader } from '@/components/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,24 +23,31 @@ function ApartmentPage() {
   const { aptNo } = Route.useParams()
   const { project, role } = useSession()
   const { data: apt } = useSuspenseQuery(apartmentQuery(project.id, aptNo))
-  const { data: defects } = useSuspenseQuery(aptDefectsQuery(project.id, aptNo, Math.max(1, apt?.defects ?? 1)))
-  const [selected, setSelected] = useState<Defect | null>(null)
+  const { data: defects } = useSuspenseQuery(aptDefectsQuery(project.id, aptNo))
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const isOwner = role?.id === 'owner'
   const A = apt ?? { no: aptNo, prog: 72, defects: 2, area: 78, rooms: 3, floor: 12, sold: true, late: false }
   const open = defects.filter((d) => d.st !== 'დახურული').length
   const doneN = Math.round((A.prog / 100) * STAGES.length)
+  const selected = defects.find((d) => d.id === selectedId) ?? null
 
+  const first = defects[0]
   const audit = [
     ['2026-06-02 11:20', 'ფოტო დაემატა', 'MEP Rough · მისაღები', 'ი. მაისურაძე'],
     ['2026-06-30 16:05', 'ეტაპი განახლდა', 'Tile → In Progress', 'ნ. ბერიძე'],
-    ['2026-07-18 09:14', 'QA ჩანაწერი შეიქმნა', `${defects[0]?.id} · ${defects[0]?.cat} · ${defects[0]?.room}`, 'გ. კვარაცხელია'],
-    ['2026-07-18 09:16', 'ფოტო დაემატა (2)', 'Before · GPS 41.7093, 44.7395', 'გ. კვარაცხელია'],
-    ['2026-07-18 09:20', 'რეკომენდაცია ჩაისვა', `ავტომატურად · კატეგორია: ${defects[0]?.cat}`, 'სისტემა'],
-    ['2026-07-18 10:02', 'დავალება მიენიჭა', `→ ${defects[0]?.sub} · ვადა ${defects[0]?.due}`, 'ნ. ბერიძე'],
-    ['2026-07-18 10:02', 'Email + Push გაიგზავნა', '4 მიმღები', 'სისტემა'],
-    ['2026-07-24 15:41', 'სტატუსი: შემოწმებაზე', 'After ფოტო დაემატა', 'ლ. ჩხეიძე'],
-    ['2026-07-24 17:09', 'PDF გენერირდა და გაიგზავნა', `${defects[0]?.id}.pdf`, 'სისტემა'],
+    // The QA leg of the trail only exists when this apartment has a defect.
+    ...(first
+      ? [
+          ['2026-07-18 09:14', 'QA ჩანაწერი შეიქმნა', `${first.id} · ${first.cat} · ${first.room}`, 'გ. კვარაცხელია'],
+          ['2026-07-18 09:16', 'ფოტო დაემატა (2)', 'Before · GPS 41.7093, 44.7395', 'გ. კვარაცხელია'],
+          ['2026-07-18 09:20', 'რეკომენდაცია ჩაისვა', `ავტომატურად · კატეგორია: ${first.cat}`, 'სისტემა'],
+          ['2026-07-18 10:02', 'დავალება მიენიჭა', `→ ${first.sub} · ვადა ${first.due}`, 'ნ. ბერიძე'],
+          ['2026-07-18 10:02', 'Email + Push გაიგზავნა', '4 მიმღები', 'სისტემა'],
+          ['2026-07-24 15:41', 'სტატუსი: შემოწმებაზე', 'After ფოტო დაემატა', 'ლ. ჩხეიძე'],
+          ['2026-07-24 17:09', 'PDF გენერირდა და გაიგზავნა', `${first.id}.pdf`, 'სისტემა'],
+        ]
+      : []),
   ]
 
   const photos = [
@@ -105,7 +112,7 @@ function ApartmentPage() {
         }
       />
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-4">
+      <div className="mb-4 grid gap-3 grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
         {[
           { l: 'პროგრესი', v: `${A.prog}%`, bar: A.prog },
           { l: 'ფართობი', v: `${A.area} მ²` },
@@ -213,11 +220,14 @@ function ApartmentPage() {
           <TabsContent value="qa">
             <Card>
               <CardContent className="space-y-1 pt-4">
+                {defects.length === 0 && (
+                  <p className="px-2 py-6 text-center text-sm text-mut">ხარვეზი არ ფიქსირდება.</p>
+                )}
                 {defects.map((d) => (
                   <button
                     key={d.id}
                     className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-soft cursor-pointer"
-                    onClick={() => setSelected(d)}
+                    onClick={() => setSelectedId(d.id)}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-bold">{d.id} · {d.cat}</div>
@@ -233,7 +243,7 @@ function ApartmentPage() {
         )}
 
         <TabsContent value="photos">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(230px,1fr))]">
             {photos.map(([d, room, kind, who]) => (
               <Card key={d + kind} className="overflow-hidden">
                 <div className="flex aspect-video items-center justify-center bg-soft text-mut-2">
@@ -304,7 +314,7 @@ function ApartmentPage() {
         </TabsContent>
       </Tabs>
 
-      <DefectDialog defect={selected} onClose={() => setSelected(null)} />
+      <DefectDialog defect={selected} onClose={() => setSelectedId(null)} />
     </div>
   )
 }

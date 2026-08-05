@@ -1,11 +1,14 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { BellRing, Check } from 'lucide-react'
-import { PRI_LABEL, type Task, type TaskColumn } from '@/data/domain'
+import { taskCommentsQuery } from '@/api/queries'
+import { useAddTaskComment } from '@/api/mutations'
+import { PRI_LABEL, nextTaskColumn, type Task, type TaskColumn } from '@/data/domain'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { cn, hash01, initials } from '@/lib/utils'
+import { cn, formatStamp, hash01, initials } from '@/lib/utils'
 
 const COL_LABEL: Record<TaskColumn, string> = {
   new: 'ახალი', prog: 'მიმდინარე', check: 'შემოწმებაზე', done: 'დასრულებული',
@@ -14,8 +17,6 @@ const COL_COLOR: Record<TaskColumn, [string, string]> = {
   new: ['#FFE7DB', '#C2410C'], prog: ['#E5EBFC', '#2447C6'],
   check: ['#F6EDD6', '#92670A'], done: ['#DFF0E7', '#0E7D52'],
 }
-const NEXT: Partial<Record<TaskColumn, TaskColumn>> = { new: 'prog', prog: 'check', check: 'done' }
-
 const CHECKLIST = [
   'ვიზუალური დათვალიერება',
   'გაზომვა და ნორმასთან შედარება',
@@ -29,21 +30,28 @@ export function TaskDialog({
   task,
   onClose,
   onAdvance,
+  advancing,
 }: {
   task: Task
   onClose: () => void
   onAdvance: (id: string, next: TaskColumn) => void
+  advancing: boolean
 }) {
-  const [comments, setComments] = useState([
-    { w: task.who, t: 'გუშინ 16:40', d: 'მივიღე დავალება — დილიდან ვიწყებ.' },
-    { w: 'ნ. ბერიძე', t: 'დღეს 09:05', d: 'გთხოვთ, ფოტოფიქსაცია თითო ბინაზე ცალ-ცალკე.' },
-  ])
+  const { data: comments = [] } = useQuery(taskCommentsQuery(task.id))
+  const addComment = useAddTaskComment(task.id)
   const [draft, setDraft] = useState('')
+
+  const submit = () => {
+    const text = draft.trim()
+    if (!text || addComment.isPending) return
+    addComment.mutate(text)
+    setDraft('')
+  }
 
   const k = task.col
   const total = 3 + Math.floor(hash01(task.id) * 3)
   const done = k === 'done' ? total : k === 'check' ? total - 1 : k === 'prog' ? Math.ceil(total / 2) : 0
-  const next = NEXT[k]
+  const next = nextTaskColumn(k)
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -62,7 +70,7 @@ export function TaskDialog({
             ფოტოთი (GPS და დრო ჩაიწერება ავტომატურად). დასრულების შემდეგ სტატუსი გადადის „შემოწმებაზე".
           </p>
 
-          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+          <div className="grid gap-2 text-xs grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
             {[
               ['ლოკაცია', task.loc],
               ['ვადა', task.due],
@@ -101,16 +109,16 @@ export function TaskDialog({
           <div>
             <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-mut-2">კომენტარები</div>
             <div className="space-y-2.5">
-              {comments.map((c, i) => (
-                <div key={i} className="flex gap-2.5">
+              {comments.map((c) => (
+                <div key={c.id} className="flex gap-2.5">
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-soft-2 text-[10px] font-bold text-mut-3">
-                    {initials(c.w)}
+                    {initials(c.who)}
                   </div>
                   <div>
                     <div className="text-xs">
-                      <b>{c.w}</b> <span className="text-mut-2">· {c.t}</span>
+                      <b>{c.who}</b> <span className="text-mut-2">· {formatStamp(c.at)}</span>
                     </div>
-                    <div className="text-sm">{c.d}</div>
+                    <div className="text-sm">{c.text}</div>
                   </div>
                 </div>
               ))}
@@ -120,21 +128,9 @@ export function TaskDialog({
                 placeholder="კომენტარი…"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && draft.trim()) {
-                    setComments((c) => [...c, { w: 'ნ. ბერიძე (თქვენ)', t: 'ახლა', d: draft.trim() }])
-                    setDraft('')
-                  }
-                }}
+                onKeyDown={(e) => e.key === 'Enter' && submit()}
               />
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  if (!draft.trim()) return
-                  setComments((c) => [...c, { w: 'ნ. ბერიძე (თქვენ)', t: 'ახლა', d: draft.trim() }])
-                  setDraft('')
-                }}
-              >
+              <Button variant="secondary" onClick={submit} disabled={addComment.isPending}>
                 გაგზავნა
               </Button>
             </div>
@@ -144,7 +140,7 @@ export function TaskDialog({
           <Button variant="outline">
             <BellRing className="h-4 w-4" /> შეხსენება
           </Button>
-          <Button disabled={!next} onClick={() => next && onAdvance(task.id, next)}>
+          <Button disabled={!next || advancing} onClick={() => next && onAdvance(task.id, next)}>
             {next ? `სტატუსი → ${COL_LABEL[next]}` : '✓ დასრულებულია'}
           </Button>
         </DialogFooter>

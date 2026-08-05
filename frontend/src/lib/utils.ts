@@ -15,6 +15,17 @@ export function hash01(s: string): number {
   return ((x >>> 0) % 1000) / 1000
 }
 
+const GE_MONTHS = ['იან', 'თებ', 'მარ', 'აპრ', 'მაი', 'ივნ', 'ივლ', 'აგვ', 'სექ', 'ოქტ', 'ნოე', 'დეკ']
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+/** ISO timestamp → `04 აგვ 16:40`. Returns the input unchanged if unparseable. */
+export function formatStamp(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return `${pad2(d.getDate())} ${GE_MONTHS[d.getMonth()]} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+}
+
 export function initials(name: string): string {
   return name
     .split(' ')

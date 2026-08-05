@@ -35,7 +35,7 @@ function AuditPage() {
       <Card>
         <CardContent className="pt-4">
           {rows.map((e) => (
-            <div key={e.t + e.action} className="flex items-center gap-3 border-b border-line py-2.5 last:border-0">
+            <div key={e.id} className="flex items-center gap-3 border-b border-line py-2.5 last:border-0">
               <span className="w-36 shrink-0 font-mono text-[11px] text-mut-2">{e.t}</span>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold">{e.action}</div>
