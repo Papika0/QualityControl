@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { BellRing, Check } from 'lucide-react'
 import { taskCommentsQuery } from '@/api/queries'
 import { useAddTaskComment } from '@/api/mutations'
-import { PRI_LABEL, nextTaskColumn, type Task, type TaskColumn } from '@/data/domain'
+import { PRI_LABEL, nextTaskColumn, type Task, type TaskColumn, type Tone } from '@/data/domain'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,9 +13,8 @@ import { cn, formatStamp, hash01, initials } from '@/lib/utils'
 const COL_LABEL: Record<TaskColumn, string> = {
   new: 'ახალი', prog: 'მიმდინარე', check: 'შემოწმებაზე', done: 'დასრულებული',
 }
-const COL_COLOR: Record<TaskColumn, [string, string]> = {
-  new: ['#FFE7DB', '#C2410C'], prog: ['#E5EBFC', '#2447C6'],
-  check: ['#F6EDD6', '#92670A'], done: ['#DFF0E7', '#0E7D52'],
+const COL_TONE: Record<TaskColumn, Tone> = {
+  new: 'open', prog: 'info', check: 'warn', done: 'ok',
 }
 const CHECKLIST = [
   'ვიზუალური დათვალიერება',
@@ -59,7 +58,14 @@ export function TaskDialog({
         <DialogHeader>
           <div className="flex items-center gap-2 pr-8">
             <DialogTitle>{task.id}</DialogTitle>
-            <Badge style={{ backgroundColor: COL_COLOR[k][0], color: COL_COLOR[k][1] }}>{COL_LABEL[k]}</Badge>
+            <Badge
+              style={{
+                backgroundColor: `var(--color-tone-${COL_TONE[k]}-bg)`,
+                color: `var(--color-tone-${COL_TONE[k]}-fg)`,
+              }}
+            >
+              {COL_LABEL[k]}
+            </Badge>
             <Badge className="bg-soft-2 text-mut-3">{PRI_LABEL[task.pri]}</Badge>
           </div>
           <p className="text-xs text-mut">{task.title}</p>
@@ -70,7 +76,7 @@ export function TaskDialog({
             ფოტოთი (GPS და დრო ჩაიწერება ავტომატურად). დასრულების შემდეგ სტატუსი გადადის „შემოწმებაზე".
           </p>
 
-          <div className="grid gap-2 text-xs grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
+          <div className="grid gap-2 text-xs grid-cols-[repeat(auto-fit,minmax(120px,1fr))] [&>*]:min-w-0">
             {[
               ['ლოკაცია', task.loc],
               ['ვადა', task.due],

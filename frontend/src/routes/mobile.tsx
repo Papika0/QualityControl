@@ -21,7 +21,7 @@ function MobilePage() {
         title="მობილური აპი — Field"
         subtitle="ველზე მომუშავე ინსპექტორებისა და ქვეკონტრაქტორების ინსტრუმენტი"
       />
-      <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
+      <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(260px,1fr))] [&>*]:min-w-0">
         {FEATURES.map((f) => (
           <Card key={f.n}>
             <CardContent className="p-5">

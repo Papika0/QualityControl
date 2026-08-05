@@ -26,10 +26,17 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
   )
 }
 
+/**
+ * Headings never wrap. A column label broken across two lines is unreadable and
+ * costs more width than it saves — the wrapper above scrolls instead.
+ */
 function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
   return (
     <th
-      className={cn('h-10 px-3 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-mut-2', className)}
+      className={cn(
+        'h-10 whitespace-nowrap px-3 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-mut-2',
+        className,
+      )}
       {...props}
     />
   )

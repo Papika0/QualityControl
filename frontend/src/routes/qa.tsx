@@ -4,7 +4,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { CircleCheck, Lock, Plus } from 'lucide-react'
 import { defectsQuery } from '@/api/queries'
-import { CATS, DEFECT_FLOW, TODAY, type Defect, type DefectStatus, type Priority } from '@/data/domain'
+import { CATS, DEFECT_FLOW, PRI_DOT, TODAY, type Defect, type DefectStatus, type Priority } from '@/data/domain'
 import { useSession } from '@/lib/session'
 import { useToast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
@@ -48,7 +48,6 @@ export const Route = createFileRoute('/qa')({
   component: QaPage,
 })
 
-const PRI_DOT: Record<Priority, string> = { high: '#C0361F', med: '#92670A', low: '#8A949B' }
 const PRI_WEIGHT: Record<Priority, number> = { high: 0, med: 1, low: 2 }
 
 /** Retention held back per subcontractor until their defects close. Finance roles only. */
@@ -154,15 +153,15 @@ function QaPage() {
       />
 
       {isSub && (
-        <div className="mb-3.5 rounded-[10px] border border-[#F3D8BC] bg-[#FFF6ED] px-4 py-2.75 text-[12.5px] text-[#8A5A18]">
+        <div className="mb-3.5 rounded-[10px] border border-note-line bg-note-bg px-4 py-2.75 text-[12.5px] text-note-label">
           🔒 Record-level წვდომა — ხედავთ მხოლოდ თქვენს კომპანიაზე („შპს ალიანს-მშენი") მიბმულ
           ჩანაწერებს. ფინანსური ველები დამალულია.
         </div>
       )}
 
       {role?.canFinance && (
-        <div className="mb-3.5 flex flex-wrap items-center gap-3 rounded-[11px] border border-line border-l-[3px] border-l-[#C98A00] bg-card px-4 py-2.75">
-          <Lock className="h-3.75 w-3.75 text-[#C98A00]" />
+        <div className="mb-3.5 flex flex-wrap items-center gap-3 rounded-[11px] border border-line border-l-[3px] border-l-warn bg-card px-4 py-2.75">
+          <Lock className="h-3.75 w-3.75 text-warn" />
           <span className="text-xs font-bold">
             Retention დაბლოკილია: <span className="text-sm">$92,400</span>
           </span>
@@ -257,7 +256,7 @@ function QaPage() {
                   onClick={() => setSelectedId(d.id)}
                   style={{ transform: `translateY(${vi.start}px)`, height: ROW_SIZE - 8 }}
                   className={cn(
-                    'absolute left-0 flex w-full cursor-pointer items-center gap-3 rounded-[11px] border border-line bg-card px-3.75 text-left transition-all hover:-translate-y-px hover:border-[#FF9A6B] hover:shadow-[0_4px_14px_rgba(20,24,28,0.06)]',
+                    'absolute left-0 flex w-full cursor-pointer items-center gap-3 rounded-[11px] border border-line bg-card px-3.75 text-left transition-all hover:-translate-y-px hover:border-brand/60 hover:shadow-[0_4px_14px_rgba(20,24,28,0.06)]',
                     d.id === flashId && 'border-brand-ring bg-brand-soft ring-2 ring-brand-ring',
                   )}
                 >

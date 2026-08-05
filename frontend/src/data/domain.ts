@@ -204,29 +204,48 @@ export function nextTaskColumn(col: TaskColumn): TaskColumn | null {
   return i >= 0 && i < TASK_FLOW.length - 1 ? TASK_FLOW[i + 1]! : null
 }
 
-/** Status → [background, foreground] chip colors. */
-export const STATUS_COLORS: Record<string, [string, string]> = {
-  'ღია': ['#FFE7DB', '#C2410C'],
-  'მიმდინარე': ['#E5EBFC', '#2447C6'],
-  'შემოწმებაზე': ['#F6EDD6', '#92670A'],
-  'დახურული': ['#DFF0E7', '#0E7D52'],
-  'In Progress': ['#E5EBFC', '#2447C6'],
-  'Completed': ['#DFF0E7', '#0E7D52'],
-  'Delayed': ['#F6EDD6', '#92670A'],
-  'Not Started': ['#EEF0EC', '#5A646B'],
-  'დამტკიცებული': ['#DFF0E7', '#0E7D52'],
-  'განხილვაში': ['#E5EBFC', '#2447C6'],
-  'გადამუშავებაზე': ['#F6EDD6', '#92670A'],
-  'ხელმოწერილი': ['#DFF0E7', '#0E7D52'],
-  'ძალაშია': ['#DFF0E7', '#0E7D52'],
-  'გამოწერილი': ['#F6EDD6', '#92670A'],
-  'გაგზავნილი': ['#EEF0EC', '#5A646B'],
-  'გადახდილი': ['#DFF0E7', '#0E7D52'],
+/**
+ * Semantic tone. Colors live in index.css as `--color-tone-*` so both themes
+ * resolve from one place — never hardcode a status hex in a component.
+ */
+export type Tone = 'open' | 'info' | 'warn' | 'ok' | 'neutral'
+
+/** Status label → tone. Covers defect, task, document and invoice statuses. */
+export const STATUS_TONE: Record<string, Tone> = {
+  'ღია': 'open',
+  'მიმდინარე': 'info',
+  'შემოწმებაზე': 'warn',
+  'დახურული': 'ok',
+  'In Progress': 'info',
+  'Completed': 'ok',
+  'Delayed': 'warn',
+  'Not Started': 'neutral',
+  'დამტკიცებული': 'ok',
+  'განხილვაში': 'info',
+  'გადამუშავებაზე': 'warn',
+  'ხელმოწერილი': 'ok',
+  'ძალაშია': 'ok',
+  'გამოწერილი': 'warn',
+  'გაგზავნილი': 'neutral',
+  'გადახდილი': 'ok',
 }
 
+/** Chip surface + label for a status, as CSS vars so they follow the theme. */
 export function statusColor(st: string): { bg: string; c: string } {
-  const t = STATUS_COLORS[st] ?? ['#EEF0EC', '#5A646B']
-  return { bg: t[0], c: t[1] }
+  const tone = STATUS_TONE[st] ?? 'neutral'
+  return { bg: `var(--color-tone-${tone}-bg)`, c: `var(--color-tone-${tone}-fg)` }
+}
+
+/** Solid tone color for dots, bars and chart strokes. */
+export function toneSolid(tone: Tone): string {
+  return `var(--color-tone-${tone}-solid)`
+}
+
+/** Priority dot colors — red / amber / muted, as in the prototype's PRI map. */
+export const PRI_DOT: Record<Priority, string> = {
+  high: 'var(--color-tone-danger-solid)',
+  med: 'var(--color-tone-warn-solid)',
+  low: 'var(--color-tone-neutral-solid)',
 }
 
 export const TODAY = '2026-08-05'

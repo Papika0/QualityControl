@@ -12,28 +12,28 @@ interface Notification {
 
 const NOTIFICATIONS: Notification[] = [
   {
-    color: '#C0361F',
+    color: 'var(--color-tone-danger-solid)',
     title: 'ვადა გავიდა: QA-0903-021',
     desc: 'კაბელის შეცვლა · შპს ტექნო-ინსტალაცია',
     ago: '12 წთ',
     to: { path: '/qa', defectId: 'QA-0903-021' },
   },
   {
-    color: '#FF4D00',
+    color: 'var(--color-brand)',
     title: 'ახალი ხარვეზი: ბინა 1204',
     desc: 'Tiles · სველი წერტილი · მაღალი პრიორიტეტი',
     ago: '1 სთ',
     to: { path: '/qa', defectId: 'QA-1204-017' },
   },
   {
-    color: '#2447C6',
+    color: 'var(--color-tone-info-solid)',
     title: 'ბინა 1204 — პროგრესი განახლდა',
     desc: 'Tile ეტაპი დასრულდა',
     ago: '3 სთ',
     to: { path: '/apartments', aptNo: '1204' },
   },
   {
-    color: '#0E7D52',
+    color: 'var(--color-tone-ok-solid)',
     title: 'ხარვეზი დაიხურა: QA-0611-017',
     desc: 'ი/მ ჯ. წიკლაური · QA ვიზუალური კონტროლი',
     ago: 'გუშინ',

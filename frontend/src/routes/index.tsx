@@ -1,13 +1,15 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import {
-  CartesianGrid, Cell, Legend, Line, LineChart,
-  Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  CartesianGrid, Legend, Line, LineChart,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { BellRing } from 'lucide-react'
 import { apartmentsQuery, defectsQuery, tasksQuery } from '@/api/queries'
-import { CATS } from '@/data/domain'
+import { CATS, type DefectStatus } from '@/data/domain'
 import { useSession } from '@/lib/session'
+import { useToast } from '@/lib/toast'
+import { StatusDonut } from '@/components/charts/status-donut'
 import { PageHeader } from '@/components/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
@@ -24,11 +26,35 @@ const MONTHS = ['მარ', 'აპრ', 'მაი', 'ივნ', 'ივლ',
 const PLAN = [4, 12, 22, 34, 47, 60, 72, 84, 94, 100]
 const FACT = [3, 10, 19, 30, 42, 54, 64]
 
-const DONUT_COLORS = ['#C2410C', '#2447C6', '#92670A', '#0E7D52']
+/** Arc fills, in the same order as the status list. See --color-arc-* in index.css. */
+const ARC_COLORS = [
+  'var(--color-arc-open)',
+  'var(--color-arc-info)',
+  'var(--color-arc-warn)',
+  'var(--color-arc-ok)',
+]
+
+// Recharts defaults to a white tooltip and #666 ticks, which are unreadable on
+// the dark card. Point them at the tokens so both themes resolve correctly.
+const AXIS_TICK = { fontSize: 11, fill: 'var(--color-mut)' }
+const LEGEND_STYLE = { fontSize: 12, color: 'var(--color-mut)' }
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    background: 'var(--color-card)',
+    border: '1px solid var(--color-line)',
+    borderRadius: 10,
+    fontSize: 12,
+    boxShadow: '0 8px 24px rgb(0 0 0 / 0.18)',
+  },
+  labelStyle: { color: 'var(--color-ink)', fontWeight: 700 },
+  itemStyle: { color: 'var(--color-mut)' },
+  cursor: { stroke: 'var(--color-line-2)' },
+}
 
 function DashboardPage() {
   const { project } = useSession()
   const navigate = useNavigate()
+  const toast = useToast()
   const { data: apts } = useSuspenseQuery(apartmentsQuery(project.id))
   const { data: defects } = useSuspenseQuery(defectsQuery(project.id))
   const { data: tasks } = useSuspenseQuery(tasksQuery())
@@ -44,10 +70,17 @@ function DashboardPage() {
     fact: FACT[i] ?? null,
   }))
 
-  const byStatus = (['ღია', 'მიმდინარე', 'შემოწმებაზე', 'დახურული'] as const).map((s) => ({
+  // Kept in workflow order (open → closed), not sorted by size: the sequence is
+  // the pipeline, so reordering by magnitude would destroy the reading. Arc colors
+  // come from the validated --color-arc-* set, not the status tones.
+  const byStatus = (['ღია', 'მიმდინარე', 'შემოწმებაზე', 'დახურული'] as const).map((s, i) => ({
     name: s,
     value: defects.filter((d) => d.st === s).length,
+    color: ARC_COLORS[i]!,
   }))
+  // The four statuses partition every defect, so the track is the whole set and
+  // each bar is that status's share of it — same denominator as the % label.
+  const statusTotal = Math.max(defects.length, 1)
 
   const topCats = CATS.map((c) => ({ c, n: defects.filter((d) => d.cat === c).length }))
     .filter((x) => x.n > 0)
@@ -61,17 +94,19 @@ function DashboardPage() {
   })
 
   const kpis = [
-    { l: 'მთლიანი პროგრესი', v: `${avg}%`, d: `გეგმა: ${avg + 6}% — ჩამორჩენა 6 პპ`, bar: avg, barColor: '#FF4D00' },
-    { l: 'ჩაბარებული ბინა', v: `${done} / ${apts.length}`, d: 'Handover აქტით დადასტურებული', bar: Math.round((done / apts.length) * 100), barColor: '#0E7D52' },
-    { l: 'ღია ხარვეზი', v: `${open}`, d: `${highOpen} მაღალი პრიორიტეტის`, bar: 56, barColor: '#C2410C', red: true },
-    { l: 'აქტიური დავალება', v: '7', d: '1 ვადაგადაცილებული · 6 თანამშრომელი', bar: 64, barColor: '#2447C6' },
+    { l: 'მთლიანი პროგრესი', v: `${avg}%`, d: `გეგმა: ${avg + 6}% — ჩამორჩენა 6 პპ`, bar: avg, barColor: 'var(--color-brand)' },
+    { l: 'ჩაბარებული ბინა', v: `${done} / ${apts.length}`, d: 'Handover აქტით დადასტურებული', bar: Math.round((done / apts.length) * 100), barColor: 'var(--color-tone-ok-solid)' },
+    { l: 'ღია ხარვეზი', v: `${open}`, d: `${highOpen} მაღალი პრიორიტეტის`, bar: 56, barColor: 'var(--color-tone-open-solid)', red: true },
+    { l: 'აქტიური დავალება', v: '7', d: '1 ვადაგადაცილებული · 6 თანამშრომელი', bar: 64, barColor: 'var(--color-tone-info-solid)' },
   ]
 
+  // `go` routes each row to the record it refers to: defects deep-link into the
+  // QA log, the task into the assignee's board, the drawing into the register.
   const overdue = [
-    { id: 'QA-0903-021', t: 'Electrical — კაბელის კვეთა', who: 'შპს ტექნო-ინსტალაცია', d: '−8 დღე', bad: true },
-    { id: 'T-2104', t: 'კაბელების დაქსელვის შემოწმება — მე-11', who: 'ი. მაისურაძე', d: '−5 დღე', bad: true },
-    { id: 'QA-0611-017', t: 'Plumbing — მილის დახრილობა', who: 'ი/მ ჯ. წიკლაური', d: '−2 დღე', bad: false },
-    { id: 'MEP-E-09', t: 'rev. C — ვიზირება ელოდება', who: 'ტექ. დირექტორი', d: 'დღეს', bad: false },
+    { id: 'QA-0903-021', t: 'Electrical — კაბელის კვეთა', who: 'შპს ტექნო-ინსტალაცია', d: '−8 დღე', bad: true, go: () => navigate({ to: '/qa', search: { id: 'QA-0903-021' } }) },
+    { id: 'T-2104', t: 'კაბელების დაქსელვის შემოწმება — მე-11', who: 'ი. მაისურაძე', d: '−5 დღე', bad: true, go: () => navigate({ to: '/tasks', search: { who: 'ი. მაისურაძე' } }) },
+    { id: 'QA-0611-017', t: 'Plumbing — მილის დახრილობა', who: 'ი/მ ჯ. წიკლაური', d: '−2 დღე', bad: false, go: () => navigate({ to: '/qa', search: { id: 'QA-0611-017' } }) },
+    { id: 'MEP-E-09', t: 'rev. C — ვიზირება ელოდება', who: 'ტექ. დირექტორი', d: 'დღეს', bad: false, go: () => navigate({ to: '/drawings' }) },
   ]
 
   const activity = [
@@ -90,7 +125,7 @@ function DashboardPage() {
         subtitle={`${project.addr} · ${apts.length} ბინა · ჩაბარება: 2027 ივნ`}
       />
 
-      <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+      <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(200px,1fr))] [&>*]:min-w-0">
         {kpis.map((k) => (
           <Card key={k.l}>
             <CardContent className="p-4">
@@ -103,7 +138,7 @@ function DashboardPage() {
         ))}
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+      <div className="mt-4 grid gap-4 xl:grid-cols-3 [&>*]:min-w-0">
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>პროგრესი — გეგმა vs ფაქტი</CardTitle>
@@ -111,13 +146,13 @@ function DashboardPage() {
           <CardContent className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={progressData} margin={{ top: 4, right: 12, bottom: 0, left: -18 }}>
-                <CartesianGrid stroke="#e4e6e0" vertical={false} />
-                <XAxis dataKey="m" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} unit="%" />
-                <Tooltip formatter={(v) => `${v ?? ''}%`} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line name="გეგმა" dataKey="plan" stroke="#8A949B" strokeDasharray="5 4" strokeWidth={2} dot={false} />
-                <Line name="ფაქტი" dataKey="fact" stroke="#FF4D00" strokeWidth={2.5} dot={{ r: 2.5 }} />
+                <CartesianGrid stroke="var(--color-line)" vertical={false} />
+                <XAxis dataKey="m" tick={AXIS_TICK} tickLine={false} axisLine={false} />
+                <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} unit="%" />
+                <Tooltip formatter={(v) => `${v ?? ''}%`} {...TOOLTIP_STYLE} />
+                <Legend wrapperStyle={LEGEND_STYLE} />
+                <Line name="გეგმა" dataKey="plan" stroke="var(--color-tone-neutral-solid)" strokeDasharray="5 4" strokeWidth={2} dot={false} />
+                <Line name="ფაქტი" dataKey="fact" stroke="var(--color-brand)" strokeWidth={2.5} dot={{ r: 2.5 }} />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -125,25 +160,19 @@ function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>ხარვეზები სტატუსით</CardTitle>
+            <CardTitle>ხარვეზები სტატუსით · {defects.length}</CardTitle>
           </CardHeader>
-          <CardContent className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={byStatus} dataKey="value" nameKey="name" innerRadius="62%" outerRadius="85%" paddingAngle={2}>
-                  {byStatus.map((_, i) => (
-                    <Cell key={i} fill={DONUT_COLORS[i]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
+          <CardContent className="flex h-64 items-center justify-center">
+            <StatusDonut
+              data={byStatus}
+              total={statusTotal}
+              onSelect={(st) => navigate({ to: '/qa', search: { st: st as DefectStatus } })}
+            />
           </CardContent>
         </Card>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+      <div className="mt-4 grid gap-4 xl:grid-cols-3 [&>*]:min-w-0">
         <Card>
           <CardHeader>
             <CardTitle>ტოპ კატეგორიები · {defects.length} ხარვეზი</CardTitle>
@@ -156,16 +185,16 @@ function DashboardPage() {
                 search={{ cat: x.c }}
                 className="block cursor-pointer"
               >
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="min-w-0 truncate font-semibold">
                     <span className={i < 3 ? 'text-brand' : 'text-mut-2'}>{String(i + 1).padStart(2, '0')}</span>{' '}
                     {x.c}
                   </span>
-                  <span className="text-mut">{x.n}</span>
+                  <span className="flex-none text-mut">{x.n}</span>
                 </div>
                 <Progress
                   value={(x.n / maxCat) * 100}
-                  barColor={i < 3 ? '#FF4D00' : '#8A949B'}
+                  barColor={i < 3 ? 'var(--color-brand)' : 'var(--color-tone-neutral-solid)'}
                   className="mt-1"
                 />
               </Link>
@@ -179,21 +208,31 @@ function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-1">
             {overdue.map((r) => (
-              <div key={r.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-soft">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">{r.t}</div>
-                  <div className="text-[11px] text-mut">
-                    {r.id} · {r.who}
-                  </div>
-                </div>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${r.bad ? 'bg-danger-soft text-danger' : 'bg-warn-soft text-warn'}`}
+              <div key={r.id} className="group flex items-center gap-3 rounded-lg pr-2 hover:bg-soft">
+                <button
+                  onClick={r.go}
+                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-left"
                 >
-                  {r.d}
-                </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold group-hover:text-brand-dark">
+                      {r.t}
+                    </span>
+                    <span className="block text-[11px] text-mut">
+                      <span className="font-mono">{r.id}</span> · {r.who}
+                    </span>
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${r.bad ? 'bg-danger-soft text-danger' : 'bg-warn-soft text-warn'}`}
+                  >
+                    {r.d}
+                  </span>
+                </button>
                 <button
                   className="rounded-md p-1.5 text-mut-2 hover:bg-soft-2 hover:text-ink cursor-pointer"
                   title="შეხსენების გაგზავნა"
+                  onClick={() =>
+                    toast({ kind: 'info', title: 'შეხსენება გაიგზავნა', desc: `${r.id} · ${r.who}` })
+                  }
                 >
                   <BellRing className="h-3.5 w-3.5" />
                 </button>
@@ -214,11 +253,11 @@ function DashboardPage() {
                   className="block w-full text-left cursor-pointer"
                   onClick={() => navigate({ to: '/tasks', search: { who: name } })}
                 >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold">{name}</span>
-                    <span className="text-mut">{n} დავალება</span>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="min-w-0 truncate font-semibold">{name}</span>
+                    <span className="flex-none text-mut">{n} დავალება</span>
                   </div>
-                  <Progress value={Math.min(100, n * 25)} barColor={n >= 4 ? '#92670A' : '#0E7D52'} className="mt-1" />
+                  <Progress value={Math.min(100, n * 25)} barColor={n >= 4 ? 'var(--color-tone-warn-solid)' : 'var(--color-tone-ok-solid)'} className="mt-1" />
                 </button>
               ))}
             </div>

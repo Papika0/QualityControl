@@ -94,7 +94,7 @@ export function NewDefectDialog({
         </DialogHeader>
 
         <DialogBody className="space-y-0 px-5 py-4.5">
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3.25">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] [&>*]:min-w-0 gap-3.25">
             <Field label="სართული">
               <select
                 className={`${CONTROL} cursor-pointer`}
@@ -225,13 +225,13 @@ export function NewDefectDialog({
               <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mut">
                 გამოსასწორებელი ღონისძიება
               </label>
-              <span className="rounded-full border border-[#EFE2CB] bg-[#FBF6EE] px-2 py-0.5 text-[10px] font-bold text-[#8A5A18]">
+              <span className="rounded-full border border-note-line bg-note-bg px-2 py-0.5 text-[10px] font-bold text-note-label">
                 ⚡ ავტომატურად ჩაისვა — კატეგორიიდან
               </span>
             </div>
             <textarea
               rows={3}
-              className="w-full resize-y rounded-[10px] border border-[#EFE2CB] bg-[#FDFBF6] px-3.25 py-2.75 text-[12.5px] leading-[1.6] text-[#4A4232]"
+              className="w-full resize-y rounded-[10px] border border-note-line bg-note-field px-3.25 py-2.75 text-[12.5px] leading-[1.6] text-note-ink"
               value={desc}
               onChange={(e) => setReco(e.target.value)}
             />
@@ -239,7 +239,7 @@ export function NewDefectDialog({
 
           <div className="flex flex-wrap gap-2.5 pt-2.5">
             <div className="flex min-w-55 flex-1 gap-2">
-              <label className="flex flex-[1.2] cursor-pointer flex-col items-center gap-1.5 rounded-[10px] border-[1.5px] border-dashed border-[#FF9A6B] bg-[#FFF8F4] px-2.5 py-3.5 text-center text-xs font-bold text-brand-dark hover:border-brand hover:bg-brand-soft">
+              <label className="flex flex-[1.2] cursor-pointer flex-col items-center gap-1.5 rounded-[10px] border-[1.5px] border-dashed border-brand/55 bg-brand-soft/40 px-2.5 py-3.5 text-center text-xs font-bold text-brand-dark hover:border-brand hover:bg-brand-soft">
                 <Camera className="h-5 w-5" />
                 გადაღება — კამერა
                 <input type="file" accept="image/*" capture="environment" className="hidden" />
@@ -257,7 +257,7 @@ export function NewDefectDialog({
                   className="relative h-16.5 w-16.5 rounded-[10px]"
                   style={{
                     background:
-                      'repeating-linear-gradient(45deg,#EDEFEA,#EDEFEA 6px,#E4E7E1 6px,#E4E7E1 12px)',
+                      'repeating-linear-gradient(45deg,var(--color-hatch-a),var(--color-hatch-a) 6px,var(--color-hatch-b) 6px,var(--color-hatch-b) 12px)',
                   }}
                 >
                   <span className="absolute bottom-1 left-1 rounded-full bg-ink px-1.25 py-px text-[8px] text-white">

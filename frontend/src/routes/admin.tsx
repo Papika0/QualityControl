@@ -75,7 +75,7 @@ function AdminPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2 [&>*]:min-w-0">
         <Card>
           <CardHeader><CardTitle>უფლებების მატრიცა</CardTitle></CardHeader>
           <CardContent>
