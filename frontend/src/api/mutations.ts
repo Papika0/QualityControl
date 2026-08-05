@@ -1,0 +1,74 @@
+// Write hooks. Each one names the actor from the current session so the audit
+// log records who did what, and invalidates every query key the write touches.
+
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import type { DefectStatus, TaskColumn } from '@/data/domain'
+import { useSession } from '@/lib/session'
+import { api, type NewDefectInput } from './client'
+
+/** Falls back to a generic label when a route is somehow rendered logged out. */
+function useActor(): string {
+  const { role } = useSession()
+  return role?.name ?? 'უცნობი მომხმარებელი'
+}
+
+const invalidate = (qc: QueryClient, keys: string[]) =>
+  Promise.all(keys.map((key) => qc.invalidateQueries({ queryKey: [key] })))
+
+export function useCreateDefect() {
+  const qc = useQueryClient()
+  const { project } = useSession()
+  const actor = useActor()
+  return useMutation({
+    mutationFn: (input: NewDefectInput) => api.defects.create(project.id, input, actor),
+    onSuccess: () => invalidate(qc, ['defects', 'apartments', 'audit']),
+  })
+}
+
+export function useSetDefectStatus() {
+  const qc = useQueryClient()
+  const { project } = useSession()
+  const actor = useActor()
+  return useMutation({
+    mutationFn: ({ id, st }: { id: string; st: DefectStatus }) =>
+      api.defects.setStatus(project.id, id, st, actor),
+    onSuccess: () => invalidate(qc, ['defects', 'apartments', 'audit']),
+  })
+}
+
+export function useSetTaskColumn() {
+  const qc = useQueryClient()
+  const actor = useActor()
+  return useMutation({
+    mutationFn: ({ id, col }: { id: string; col: TaskColumn }) => api.tasks.setColumn(id, col, actor),
+    onSuccess: () => invalidate(qc, ['tasks', 'audit']),
+  })
+}
+
+export function useAddTaskComment(taskId: string) {
+  const qc = useQueryClient()
+  const actor = useActor()
+  return useMutation({
+    mutationFn: (text: string) => api.tasks.addComment(taskId, actor, text),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['taskComments', taskId] }),
+  })
+}
+
+export function useSetUserActive() {
+  const qc = useQueryClient()
+  const actor = useActor()
+  return useMutation({
+    mutationFn: ({ mail, active }: { mail: string; active: boolean }) =>
+      api.users.setActive(mail, active, actor),
+    onSuccess: () => invalidate(qc, ['users', 'audit']),
+  })
+}
+
+export function useResetDemoData() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.storage.reset(),
+    // Everything changed — drop the whole cache rather than listing keys.
+    onSuccess: () => qc.invalidateQueries(),
+  })
+}

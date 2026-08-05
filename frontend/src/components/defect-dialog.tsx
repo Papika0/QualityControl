@@ -2,7 +2,8 @@ import { Camera, MapPin } from 'lucide-react'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge, StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { PRI_LABEL, RECO, type Defect } from '@/data/domain'
+import { useSetDefectStatus } from '@/api/mutations'
+import { PRI_LABEL, RECO, nextDefectStatus, type Defect } from '@/data/domain'
 import { cn } from '@/lib/utils'
 
 const TIMELINE = (d: Defect) => [
@@ -19,8 +20,11 @@ export function DefectDialog({
   defect: Defect | null
   onClose: () => void
 }) {
+  const advance = useSetDefectStatus()
+
   if (!defect) return null
   const doneIdx = { 'ღია': 1, 'მიმდინარე': 2, 'შემოწმებაზე': 3, 'დახურული': 4 }[defect.st] ?? 1
+  const next = nextDefectStatus(defect.st)
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -103,7 +107,13 @@ export function DefectDialog({
           <Button variant="outline" onClick={onClose}>
             დახურვა
           </Button>
-          <Button>PDF ანგარიში</Button>
+          <Button variant="outline">PDF ანგარიში</Button>
+          <Button
+            disabled={!next || advance.isPending}
+            onClick={() => next && advance.mutate({ id: defect.id, st: next })}
+          >
+            {next ? `სტატუსი → ${next}` : '✓ დახურულია'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,7 +1,8 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useSuspenseQuery } from '@tanstack/react-query'
-import { UserPlus } from 'lucide-react'
-import { usersQuery } from '@/api/queries'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { RotateCcw, UserPlus } from 'lucide-react'
+import { storageQuery, usersQuery } from '@/api/queries'
+import { useResetDemoData, useSetUserActive } from '@/api/mutations'
 import { PageHeader } from '@/components/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,6 +37,9 @@ const ROLE_KEYS = ['admin', 'techdir', 'pm', 'qa', 'sub', 'owner']
 
 function AdminPage() {
   const { data: users } = useSuspenseQuery(usersQuery())
+  const { data: persistent } = useQuery(storageQuery())
+  const setActive = useSetUserActive()
+  const reset = useResetDemoData()
 
   return (
     <div>
@@ -43,11 +47,33 @@ function AdminPage() {
         title="ადმინისტრირება"
         subtitle="მომხმარებლები, როლები და მოდულების უფლებები"
         actions={
-          <Button>
-            <UserPlus className="h-4 w-4" /> მოწვევა ელფოსტით
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              disabled={reset.isPending}
+              onClick={() => {
+                if (confirm('ყველა ცვლილება წაიშლება და დემო მონაცემები აღდგება. გავაგრძელოთ?')) {
+                  reset.mutate()
+                }
+              }}
+            >
+              <RotateCcw className="h-4 w-4" />
+              {reset.isPending ? 'მიმდინარეობს…' : 'დემო მონაცემების აღდგენა'}
+            </Button>
+            <Button>
+              <UserPlus className="h-4 w-4" /> მოწვევა ელფოსტით
+            </Button>
+          </>
         }
       />
+
+      {persistent === false && (
+        <Card className="mb-4 border-warn/40 bg-warn-soft">
+          <CardContent className="p-3 text-xs font-semibold text-warn">
+            IndexedDB მიუწვდომელია (ინკოგნიტო რეჟიმი?) — მონაცემები მხოლოდ ამ სესიაში შეინახება.
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
@@ -104,10 +130,15 @@ function AdminPage() {
                   <div className="text-xs font-semibold">{u.role}</div>
                   <div className="text-[11px] text-mut">{u.scope}</div>
                 </div>
-                <span
-                  className={`h-2 w-2 shrink-0 rounded-full ${u.active ? 'bg-ok' : 'bg-warn'}`}
-                  title={u.active ? 'აქტიური' : 'შეზღუდული'}
-                />
+                <button
+                  type="button"
+                  className="shrink-0 cursor-pointer rounded-full p-1.5 hover:bg-soft-2 disabled:opacity-50"
+                  title={u.active ? 'აქტიური — დაწკაპეთ შესაზღუდად' : 'შეზღუდული — დაწკაპეთ გასააქტიურებლად'}
+                  disabled={setActive.isPending}
+                  onClick={() => setActive.mutate({ mail: u.mail, active: !u.active })}
+                >
+                  <span className={`block h-2 w-2 rounded-full ${u.active ? 'bg-ok' : 'bg-warn'}`} />
+                </button>
               </div>
             ))}
           </CardContent>

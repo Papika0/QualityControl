@@ -3,7 +3,8 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { Plus, X } from 'lucide-react'
 import { tasksQuery } from '@/api/queries'
-import { TASK_TYPES, type Task, type TaskColumn } from '@/data/domain'
+import { useSetTaskColumn } from '@/api/mutations'
+import { TASK_TYPES, type TaskColumn } from '@/data/domain'
 import { PageHeader } from '@/components/page-header'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -42,11 +43,12 @@ function TasksPage() {
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
   const { data: tasks } = useSuspenseQuery(tasksQuery())
-  const [selected, setSelected] = useState<Task | null>(null)
-  // Local status overrides so the kanban is interactive before the real API lands
-  const [statusOverride, setStatusOverride] = useState<Record<string, TaskColumn>>({})
+  const advance = useSetTaskColumn()
+  // Track the id, not the row: the column change is persisted and refetched,
+  // so the open dialog must read from the fresh list.
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const effCol = (t: Task): TaskColumn => statusOverride[t.id] ?? t.col
+  const selected = tasks.find((t) => t.id === selectedId) ?? null
 
   const filtered = useMemo(
     () =>
@@ -123,7 +125,7 @@ function TasksPage() {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {COLUMNS.map((col) => {
-          const cards = filtered.filter((t) => effCol(t) === col.key)
+          const cards = filtered.filter((t) => t.col === col.key)
           return (
             <div key={col.key} className="rounded-xl bg-soft p-2.5">
               <div className="mb-2 flex items-center gap-2 px-1">
@@ -141,7 +143,7 @@ function TasksPage() {
                     <Card
                       key={t.id}
                       className="cursor-pointer p-3 hover:shadow-md"
-                      onClick={() => setSelected({ ...t, col: effCol(t) })}
+                      onClick={() => setSelectedId(t.id)}
                     >
                       <div className="flex items-center gap-1.5 text-[10px] font-bold text-mut-2">
                         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: PRI_DOT[t.pri] }} />
@@ -173,11 +175,9 @@ function TasksPage() {
       {selected && (
         <TaskDialog
           task={selected}
-          onClose={() => setSelected(null)}
-          onAdvance={(id, next) => {
-            setStatusOverride((s) => ({ ...s, [id]: next }))
-            setSelected((t) => (t && t.id === id ? { ...t, col: next } : t))
-          }}
+          onClose={() => setSelectedId(null)}
+          onAdvance={(id, col) => advance.mutate({ id, col })}
+          advancing={advance.isPending}
         />
       )}
     </div>

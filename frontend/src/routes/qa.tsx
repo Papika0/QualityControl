@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import {
@@ -8,7 +8,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowDown, ArrowUp, ArrowUpDown, Plus } from 'lucide-react'
 import { defectsQuery } from '@/api/queries'
-import { CATS, PRI_LABEL, TODAY, type Defect, type DefectStatus, type Priority } from '@/data/domain'
+import { CATS, DEFECT_FLOW, PRI_LABEL, TODAY, type Defect, type DefectStatus, type Priority } from '@/data/domain'
 import { useSession } from '@/lib/session'
 import { PageHeader } from '@/components/page-header'
 import { Chip } from '@/components/ui/chip'
@@ -19,7 +19,7 @@ import { DefectDialog } from '@/components/defect-dialog'
 import { NewDefectDialog } from '@/components/new-defect-dialog'
 import { cn } from '@/lib/utils'
 
-const STATUSES: DefectStatus[] = ['ღია', 'მიმდინარე', 'შემოწმებაზე', 'დახურული']
+const STATUSES = DEFECT_FLOW
 
 // Typed search params — filters live in the URL, so filtered views are linkable.
 interface QaSearch {
@@ -48,11 +48,17 @@ function QaPage() {
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
   const { data: all } = useSuspenseQuery(defectsQuery(project.id))
-  const [selected, setSelected] = useState<Defect | null>(null)
+  // Track the id, not the row: after a status write the list refetches and the
+  // open dialog has to show the new value, not the copy it was opened with.
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [sorting, setSorting] = useState<SortingState>([])
+  // A freshly filed defect is appended to the end of the list, so it lands far
+  // below the fold. Remember its id to scroll it into view and flash the row.
+  const [flashId, setFlashId] = useState<string | null>(null)
 
   const isSub = role?.id === 'sub'
+  const selected = all.find((d) => d.id === selectedId) ?? null
 
   const rows = useMemo(() => {
     let list = all
@@ -129,6 +135,15 @@ function QaPage() {
     estimateSize: () => 44,
     overscan: 12,
   })
+
+  const flashIndex = flashId ? tableRows.findIndex((r) => r.original.id === flashId) : -1
+
+  useEffect(() => {
+    if (flashIndex < 0) return
+    virtualizer.scrollToIndex(flashIndex, { align: 'center' })
+    const t = setTimeout(() => setFlashId(null), 3000)
+    return () => clearTimeout(t)
+  }, [flashIndex, virtualizer])
 
   const setFilter = (patch: Partial<QaSearch>) =>
     navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true })
@@ -212,11 +227,12 @@ function QaPage() {
                   <div
                     key={row.id}
                     className={cn(
-                      'absolute left-0 grid w-full cursor-pointer items-center border-b border-line hover:bg-soft/60',
+                      'absolute left-0 grid w-full cursor-pointer items-center border-b border-line transition-colors hover:bg-soft/60',
                       GRID_COLS,
+                      row.original.id === flashId && 'bg-brand-soft ring-2 ring-inset ring-brand-ring hover:bg-brand-soft',
                     )}
                     style={{ transform: `translateY(${vi.start}px)`, height: vi.size }}
-                    onClick={() => setSelected(row.original)}
+                    onClick={() => setSelectedId(row.original.id)}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <div key={cell.id} className="truncate px-3">
@@ -239,8 +255,18 @@ function QaPage() {
         </div>
       </Card>
 
-      <DefectDialog defect={selected} onClose={() => setSelected(null)} />
-      {creating && <NewDefectDialog onClose={() => setCreating(false)} />}
+      <DefectDialog defect={selected} onClose={() => setSelectedId(null)} />
+      {creating && (
+        <NewDefectDialog
+          onClose={() => setCreating(false)}
+          onCreated={(d) => {
+            // Drop any filter that would hide the row, then reveal it.
+            navigate({ search: {}, replace: true })
+            setSorting([])
+            setFlashId(d.id)
+          }}
+        />
+      )}
     </div>
   )
 }
