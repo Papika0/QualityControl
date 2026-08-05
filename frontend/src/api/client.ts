@@ -13,12 +13,14 @@ import {
   type DocRow, type Priority, type ProjectId, type Standard, type Task,
   type TaskColumn, type TaskComment, type UserRow,
 } from '@/data/domain'
+import type { Annotation } from '@/lib/annotate'
+import { blobBytes } from '@/lib/image'
 import type { Backend, WriteOp } from './idb'
 import { db, resetDatabase, type StoreName } from './schema'
 import {
   aptKey, defectKey,
   type AptRow, type ArchiveDocRow, type AuditEntryRow, type ContractDocRow,
-  type DefectRow, type DocumentRow, type StandardRow, type TaskCommentRow,
+  type DefectRow, type DocumentRow, type PhotoRow, type StandardRow, type TaskCommentRow,
   type TaskRow, type UserAccountRow,
 } from './seed'
 
@@ -97,6 +99,33 @@ async function recountOp(
   return open === apt.defects ? [] : [{ store: 'apartments', put: { ...apt, defects: open } }]
 }
 
+/**
+ * A stored photo, handed back with its bytes rebuilt into a Blob so callers
+ * work with images the same way they always have.
+ */
+export interface Photo extends Omit<PhotoRow, 'bytes' | 'type' | 'blob'> {
+  blob: Blob
+}
+
+function toPhoto(row: PhotoRow): Photo {
+  const { bytes, type, blob, ...rest } = row
+  // `blob` only appears on rows written before the bytes migration.
+  return { ...rest, blob: blob ?? new Blob([bytes], { type: type || 'image/jpeg' }) }
+}
+
+/** A photo the inspector attached, already decoded and downscaled by the UI. */
+export interface NewPhotoInput {
+  id: string
+  name: string
+  blob: Blob
+  w: number
+  h: number
+  source: 'camera' | 'upload'
+  at: string
+  /** Marks drawn on the photo before filing. Already burned into `blob`. */
+  annotations?: Annotation[]
+}
+
 export interface NewDefectInput {
   apt: string
   room: string
@@ -106,6 +135,8 @@ export interface NewDefectInput {
   /** QA inspector filing the defect. */
   who: string
   desc: string
+  /** Evidence attached at filing time. Stored with the defect, in one transaction. */
+  photos?: NewPhotoInput[]
 }
 
 export const api = {
@@ -159,12 +190,45 @@ export const api = {
         desc: input.desc,
       }
 
+      // Decoding to bytes happens up front, before the transaction opens — an
+      // await inside a live IndexedDB transaction would auto-close it.
+      const photos: PhotoRow[] = await Promise.all(
+        (input.photos ?? []).map(async (p, ord) => ({
+          id: p.id,
+          defect: row.key,
+          ord,
+          kind: 'before' as const,
+          name: p.name,
+          at: p.at,
+          source: p.source,
+          w: p.w,
+          h: p.h,
+          bytes: await blobBytes(p.blob),
+          type: p.blob.type || 'image/jpeg',
+          ...(p.annotations?.length ? { annotations: p.annotations } : {}),
+        })),
+      )
+
+      const detail = `${id} · ${input.cat} · ბინა ${input.apt}`
       await backend.write([
         { store: 'defects', put: row },
+        ...photos.map((put): Op => ({ store: 'photos', put })),
         ...(await recountOp(backend, proj, input.apt, [...forApt, row])),
-        await auditOp(backend, 'ხარვეზი დარეგისტრირდა', `${id} · ${input.cat} · ბინა ${input.apt}`, actor),
+        await auditOp(
+          backend,
+          'ხარვეზი დარეგისტრირდა',
+          photos.length ? `${detail} · ${photos.length} ფოტო` : detail,
+          actor,
+        ),
       ])
       return row
+    },
+
+    /** Field photos for one defect, in the order they were attached. */
+    async photos(proj: ProjectId, id: string): Promise<Photo[]> {
+      const backend = await db()
+      const rows = await backend.getAll<PhotoRow>('photos', 'by-defect', defectKey(proj, id))
+      return byOrd(rows).map(toPhoto)
     },
 
     async setStatus(
