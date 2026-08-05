@@ -7,32 +7,44 @@ const Dialog = DialogPrimitive.Root
 const DialogTrigger = DialogPrimitive.Trigger
 const DialogClose = DialogPrimitive.Close
 
-function DialogContent({ className, children, ...props }: React.ComponentProps<typeof DialogPrimitive.Content>) {
+function DialogContent({
+  className,
+  children,
+  showClose = true,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean }) {
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-ink/45 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=open]:fade-in-0" />
       <DialogPrimitive.Content
         className={cn(
-          'fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-2xl focus:outline-none',
+          'fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[14px] bg-card shadow-[0_30px_80px_rgba(10,14,18,0.4)] focus:outline-none data-[state=open]:animate-rise',
           className,
         )}
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md p-1 text-mut-2 hover:bg-soft hover:text-ink cursor-pointer">
-          <X className="h-4 w-4" />
-        </DialogPrimitive.Close>
+        {showClose && (
+          <DialogPrimitive.Close className="absolute right-5 top-3.75 z-3 grid h-7.5 w-7.5 cursor-pointer place-items-center rounded-lg bg-soft-2 text-mut-3 hover:bg-line hover:text-ink">
+            <X className="h-3.5 w-3.5" />
+          </DialogPrimitive.Close>
+        )}
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>
   )
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('border-b border-line px-6 py-4', className)} {...props} />
+  return (
+    <div
+      className={cn('sticky top-0 z-2 border-b border-line-soft bg-card px-5 py-3.75', className)}
+      {...props}
+    />
+  )
 }
 
 function DialogTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
-  return <DialogPrimitive.Title className={cn('text-base font-bold', className)} {...props} />
+  return <DialogPrimitive.Title className={cn('text-base font-extrabold', className)} {...props} />
 }
 
 function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
@@ -40,11 +52,19 @@ function DialogDescription({ className, ...props }: React.ComponentProps<typeof 
 }
 
 function DialogBody({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('flex-1 overflow-y-auto px-6 py-4', className)} {...props} />
+  return <div className={cn('flex-1 overflow-y-auto px-5 py-4.5', className)} {...props} />
 }
 
 function DialogFooter({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('flex items-center justify-end gap-2 border-t border-line px-6 py-4', className)} {...props} />
+  return (
+    <div
+      className={cn(
+        'sticky bottom-0 flex items-center justify-end gap-2.5 border-t border-line-soft bg-card px-5 py-4',
+        className,
+      )}
+      {...props}
+    />
+  )
 }
 
 export { Dialog, DialogTrigger, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter }

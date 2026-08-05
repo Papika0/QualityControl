@@ -62,7 +62,7 @@ export function TaskDialog({
             ფოტოთი (GPS და დრო ჩაიწერება ავტომატურად). დასრულების შემდეგ სტატუსი გადადის „შემოწმებაზე".
           </p>
 
-          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+          <div className="grid gap-2 text-xs grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
             {[
               ['ლოკაცია', task.loc],
               ['ვადა', task.due],

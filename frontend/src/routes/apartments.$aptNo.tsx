@@ -105,7 +105,7 @@ function ApartmentPage() {
         }
       />
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-4">
+      <div className="mb-4 grid gap-3 grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
         {[
           { l: 'პროგრესი', v: `${A.prog}%`, bar: A.prog },
           { l: 'ფართობი', v: `${A.area} მ²` },
@@ -233,7 +233,7 @@ function ApartmentPage() {
         )}
 
         <TabsContent value="photos">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(230px,1fr))]">
             {photos.map(([d, room, kind, who]) => (
               <Card key={d + kind} className="overflow-hidden">
                 <div className="flex aspect-video items-center justify-center bg-soft text-mut-2">

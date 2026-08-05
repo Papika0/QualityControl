@@ -2,25 +2,48 @@
 /* Frappe Gantt base styles (resolved via the package's "style" export condition) */
 @import "frappe-gantt";
 
+/* Design tokens mirror the approved prototype's :root block 1:1 — see the
+   "Nutsubidze 2A Platform" HTML. Keep the hex values in sync with it. */
 @theme {
-  --font-sans: "Inter", "Noto Sans Georgian", system-ui, -apple-system, sans-serif;
+  /* The prototype switches between its desktop and mobile shells at exactly one
+     width: 960px. `nav:` is that breakpoint — use it, not md:/lg:, for shell chrome. */
+  --breakpoint-nav: 60rem;
+
+  --font-sans: "Noto Sans Georgian", "Archivo", system-ui, -apple-system, sans-serif;
+  --font-display: "Archivo", "Noto Sans Georgian", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
 
   --color-brand: #ff4d00;
+  --color-brand-hover: #e64500;
   --color-brand-dark: #b33a00;
   --color-brand-soft: #ffede3;
   --color-brand-ring: #ffd9c7;
 
   --color-ink: #16191d;
-  --color-mut: #6b757c;
-  --color-mut-2: #8a949b;
+  --color-mut: #6b7480;
+  --color-mut-2: #98a2a8;
   --color-mut-3: #5a646b;
+  --color-navink: #3a434b;
 
-  --color-page: #f4f4f1;
+  --color-page: #f2f3ef;
   --color-card: #ffffff;
-  --color-soft: #f1f2ee;
-  --color-soft-2: #eef0ec;
-  --color-line: #e4e6e0;
-  --color-line-2: #d8dbd3;
+  --color-card-2: #fbfcfa;
+  --color-side: #fbfbfa;
+  --color-soft: #f7f8f5;
+  --color-soft-2: #f1f2ee;
+  --color-soft-3: #eef0ec;
+  --color-soft-4: #f3f4f0;
+  --color-line: #e4e6e1;
+  /* line-2 is the prototype's --bd2: the input/control border, darker than --line */
+  --color-line-2: #dde0da;
+  /* the hairline used inside modals and dropdowns (prototype --line2) */
+  --color-line-soft: #eceee9;
+  --color-chip-a: #16191d;
+  --color-chip-a-fg: #ffffff;
+
+  --color-shell: #14181c;
+  --color-shell-2: #22272d;
+  --color-shell-line: #39414a;
 
   --color-ok: #0e7d52;
   --color-ok-soft: #dff0e7;
@@ -31,14 +54,107 @@
   --color-warn-soft: #f6edd6;
   --color-info: #2447c6;
   --color-info-soft: #e5ebfc;
+
+  --animate-rise: rise 0.45s ease both;
+  --animate-sheet-up: sheetUp 0.24s ease both;
+  --animate-shim: shim 1.1s linear infinite;
+  --animate-toast-in: toastIn 0.3s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  --animate-toast-bar: toastBar 4.2s linear forwards;
 }
 
 :root {
   color-scheme: light;
 }
 
+/* Dark theme re-points the @theme tokens, so every bg-card / text-ink / border-line
+   in the app flips without needing `dark:` variants. Values from the prototype's
+   html[data-theme="dark"] block. */
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-page: #0f1317;
+  --color-card: #191f25;
+  --color-card-2: #161c21;
+  --color-side: #131920;
+  --color-line: #2e3640;
+  --color-line-soft: #2a323b;
+  --color-line-2: #3e4854;
+  --color-ink: #edf1f5;
+  --color-mut: #a9b5bf;
+  --color-mut-2: #8a96a0;
+  --color-mut-3: #c2ccd4;
+  --color-navink: #c3ccd4;
+  --color-soft: #222932;
+  --color-soft-2: #262e37;
+  --color-soft-3: #28303a;
+  --color-soft-4: #202730;
+  --color-chip-a: #edf1f5;
+  --color-chip-a-fg: #12161b;
+
+  --color-brand-dark: #ff9268;
+  --color-danger: #ff7a5c;
+  --color-danger-2: #ff8a64;
+  --color-ok: #45c692;
+  --color-warn: #ebbe52;
+  --color-info: #93a9ff;
+}
+
 body {
   @apply bg-page text-ink font-sans antialiased;
+}
+
+/* Prototype uses a solid brand outline for focus, not a pale ring. */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 1px;
+}
+
+::selection {
+  background: var(--color-brand-ring);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sheetUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes shim {
+  from { background-position: -420px 0; }
+  to { background-position: 420px 0; }
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes toastBar {
+  from { width: 100%; }
+  to { width: 0; }
+}
+
+/* Shimmering placeholder used by <Skeleton> while a route's data loads. */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-soft-3) 25%,
+    var(--color-soft) 37%,
+    var(--color-soft-3) 63%
+  );
+  background-size: 840px 100%;
+  animation: shim 1.1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 /* Frappe Gantt overrides to match the design system */

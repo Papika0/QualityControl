@@ -84,9 +84,13 @@ function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title={project.name} subtitle={project.addr} />
+      <PageHeader
+        crumb={`პროექტები / ${project.id} / Dashboard`}
+        title={project.name}
+        subtitle={`${project.addr} · ${apts.length} ბინა · ჩაბარება: 2027 ივნ`}
+      />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
         {kpis.map((k) => (
           <Card key={k.l}>
             <CardContent className="p-4">
