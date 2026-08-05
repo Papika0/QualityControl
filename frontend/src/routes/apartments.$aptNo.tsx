@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { Camera, FileDown } from 'lucide-react'
 import { apartmentQuery, aptDefectsQuery } from '@/api/queries'
 import { PEOPLE, STAGES } from '@/data/domain'
 import { useSession } from '@/lib/session'
-import { PageHeader } from '@/components/page-header'
+import { BackLink, PageHeader } from '@/components/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -81,7 +81,7 @@ function ApartmentPage() {
   const remaining = [
     { m: '✓', t: 'ფარული სამუშაოების აქტები', d: 'შესრულდა', cls: 'bg-ok-soft text-ok' },
     { m: '✓', t: 'სველი წერტილების ტესტი', d: 'შესრულდა', cls: 'bg-ok-soft text-ok' },
-    { m: String(Math.max(open, 1)), t: 'ღია ხარვეზების დახურვა', d: 'ვადა: 24 აგვ', cls: 'bg-[#FFE7DB] text-[#C2410C]' },
+    { m: String(Math.max(open, 1)), t: 'ღია ხარვეზების დახურვა', d: 'ვადა: 24 აგვ', cls: 'bg-tone-open-bg text-tone-open-fg' },
     { m: '·', t: 'ფინალური ინსპექცია', d: 'სექტემბერი', cls: 'bg-soft-2 text-mut-3' },
     { m: '·', t: 'Handover აქტი მფლობელთან', d: 'ნოემბერი', cls: 'bg-soft-2 text-mut-3' },
   ]
@@ -89,6 +89,7 @@ function ApartmentPage() {
   return (
     <div>
       <PageHeader
+        back={!isOwner && <BackLink to="/map">რუკაზე დაბრუნება</BackLink>}
         title={`ბინა ${A.no}`}
         subtitle={
           isOwner
@@ -96,23 +97,13 @@ function ApartmentPage() {
             : `სართული ${A.floor} · ${project.name}`
         }
         actions={
-          <>
-            {!isOwner && (
-              <Link
-                to="/map"
-                className="inline-flex h-9 items-center rounded-lg border border-line-2 bg-card px-4 text-sm font-semibold hover:bg-soft"
-              >
-                ← რუკაზე დაბრუნება
-              </Link>
-            )}
-            <Button>
-              <FileDown className="h-4 w-4" /> PDF ანგარიში
-            </Button>
-          </>
+          <Button>
+            <FileDown className="h-4 w-4" /> PDF ანგარიში
+          </Button>
         }
       />
 
-      <div className="mb-4 grid gap-3 grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
+      <div className="mb-4 grid gap-3 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] [&>*]:min-w-0">
         {[
           { l: 'პროგრესი', v: `${A.prog}%`, bar: A.prog },
           { l: 'ფართობი', v: `${A.area} მ²` },
@@ -140,7 +131,7 @@ function ApartmentPage() {
         </TabsList>
 
         <TabsContent value="gen">
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
             <Card>
               <CardHeader><CardTitle>ინფორმაცია</CardTitle></CardHeader>
               <CardContent>
@@ -198,7 +189,7 @@ function ApartmentPage() {
                           <div className="flex items-center gap-2">
                             <Progress
                               value={pct}
-                              barColor={st === 'Completed' ? '#0E7D52' : st === 'Delayed' ? '#92670A' : '#2447C6'}
+                              barColor={st === 'Completed' ? 'var(--color-tone-ok-solid)' : st === 'Delayed' ? 'var(--color-tone-warn-solid)' : 'var(--color-tone-info-solid)'}
                               className="flex-1"
                             />
                             <span className="w-9 text-right text-xs text-mut">{pct}%</span>
@@ -243,7 +234,7 @@ function ApartmentPage() {
         )}
 
         <TabsContent value="photos">
-          <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(230px,1fr))]">
+          <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(230px,1fr))] [&>*]:min-w-0">
             {photos.map(([d, room, kind, who]) => (
               <Card key={d + kind} className="overflow-hidden">
                 <div className="flex aspect-video items-center justify-center bg-soft text-mut-2">

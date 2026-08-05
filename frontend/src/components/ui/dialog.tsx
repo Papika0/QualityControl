@@ -21,7 +21,9 @@ function DialogContent({
       <DialogPrimitive.Overlay className="fixed inset-0 z-200 bg-ink/45 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=open]:fade-in-0" />
       <DialogPrimitive.Content
         className={cn(
-          'fixed left-1/2 top-1/2 z-200 flex max-h-[92dvh] w-[calc(100%-20px)] max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[14px] bg-card shadow-[0_30px_80px_rgba(10,14,18,0.4)] focus:outline-none data-[state=open]:animate-rise',
+          // Border carries the edge in dark mode, where the drop shadow all but
+          // disappears against the page.
+          'fixed left-1/2 top-1/2 z-200 flex max-h-[92dvh] w-[calc(100%-20px)] max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[14px] border border-line bg-card shadow-[0_30px_80px_rgba(10,14,18,0.4)] focus:outline-none data-[state=open]:animate-rise',
           className,
         )}
         {...props}

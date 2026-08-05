@@ -277,7 +277,7 @@ export function NewDefectDialog({
             </DialogHeader>
 
             <DialogBody className="space-y-0 px-5 py-4.5">
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3.25">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] [&>*]:min-w-0 gap-3.25">
                 <Field label="სართული">
                   <select
                     className={`${CONTROL} cursor-pointer`}
@@ -418,7 +418,7 @@ export function NewDefectDialog({
                   <label htmlFor="defect-desc" className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mut">
                     გამოსასწორებელი ღონისძიება
                   </label>
-                  <span className="inline-flex items-center gap-1.25 rounded-full border border-[#EFE2CB] bg-[#FBF6EE] px-2 py-0.5 text-[10px] font-semibold text-[#8A5A18]">
+                  <span className="inline-flex items-center gap-1.25 rounded-full border border-note-line bg-note-bg px-2 py-0.5 text-[10px] font-semibold text-note-label">
                     <Wand2 className="h-2.75 w-2.75" />
                     ავტომატურად შევსებული კატეგორიის მიხედვით
                   </span>
@@ -427,7 +427,7 @@ export function NewDefectDialog({
                   id="defect-desc"
                   ref={descRef}
                   rows={4}
-                  className="block min-h-26 w-full resize-none overflow-hidden rounded-[10px] border border-[#EFE2CB] bg-[#FDFBF6] px-3.25 py-2.75 text-[12.5px] leading-[1.6] text-[#4A4232]"
+                  className="block min-h-26 w-full resize-none overflow-hidden rounded-[10px] border border-note-line bg-note-field px-3.25 py-2.75 text-[12.5px] leading-[1.6] text-note-ink"
                   value={desc}
                   onChange={(e) => setReco(e.target.value)}
                 />
@@ -438,7 +438,7 @@ export function NewDefectDialog({
                   {/* Only a coarse pointer gets the camera tile — `capture` does
                       nothing on a desktop, where the plain picker is the default. */}
                   {hasCamera && (
-                    <label className="flex flex-[1.2] cursor-pointer flex-col items-center gap-1.5 rounded-[10px] border-[1.5px] border-dashed border-[#FF9A6B] bg-[#FFF8F4] px-2.5 py-3.5 text-center text-xs font-bold text-brand-dark hover:border-brand hover:bg-brand-soft">
+                    <label className="flex flex-[1.2] cursor-pointer flex-col items-center gap-1.5 rounded-[10px] border-[1.5px] border-dashed border-brand/55 bg-brand-soft/40 px-2.5 py-3.5 text-center text-xs font-bold text-brand-dark hover:border-brand hover:bg-brand-soft">
                       <Camera className="h-5 w-5" />
                       გადაღება — კამერა
                       <input

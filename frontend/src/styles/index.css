@@ -3,8 +3,16 @@
 @import "frappe-gantt";
 
 /* Design tokens mirror the approved prototype's :root block 1:1 — see the
-   "Nutsubidze 2A Platform" HTML. Keep the hex values in sync with it. */
-@theme {
+   "Nutsubidze 2A Platform" HTML. Keep the hex values in sync with it.
+
+   `static` emits every variable instead of only those some utility class
+   happens to name. The app resolves tokens dynamically all over — statusColor()
+   and toneSolid() build `var(--color-tone-<tone>-bg)` from a value, and Recharts
+   needs real colors in `fill`/`stroke` props where a class cannot go — and none
+   of those are visible to Tailwind's scanner. Without `static` the unreferenced
+   ones are dropped from the light `:root` while the dark block, being plain CSS,
+   keeps them: the bug then only appears in light mode. */
+@theme static {
   /* The prototype switches between its desktop and mobile shells at exactly one
      width: 960px. `nav:` is that breakpoint — use it, not md:/lg:, for shell chrome. */
   --breakpoint-nav: 60rem;
@@ -55,6 +63,63 @@
   --color-info: #2447c6;
   --color-info-soft: #e5ebfc;
 
+  /* --- Semantic tones -------------------------------------------------------
+     Every status chip, priority dot, kanban marker and chart series resolves to
+     one of these five tones. Each has a `-bg` surface, a `-fg` label that reads
+     on that surface, and a `-solid` for dots/bars/strokes on the page. Adding
+     the dark values below is the only place a theme needs to know about them. */
+  --color-tone-open-bg: #ffe7db;
+  --color-tone-open-fg: #c2410c;
+  --color-tone-open-solid: #c2410c;
+
+  --color-tone-info-bg: #e5ebfc;
+  --color-tone-info-fg: #2447c6;
+  --color-tone-info-solid: #2447c6;
+
+  --color-tone-warn-bg: #f6edd6;
+  --color-tone-warn-fg: #92670a;
+  --color-tone-warn-solid: #92670a;
+
+  --color-tone-ok-bg: #dff0e7;
+  --color-tone-ok-fg: #0e7d52;
+  --color-tone-ok-solid: #0e7d52;
+
+  --color-tone-neutral-bg: #eef0ec;
+  --color-tone-neutral-fg: #5a646b;
+  --color-tone-neutral-solid: #8a949b;
+
+  --color-tone-danger-solid: #c0361f;
+
+  /* --- Chart arc palette ----------------------------------------------------
+     The four statuses again, but re-stepped for *arcs*, where color carries
+     identity and neighbours touch. Validated all-pairs with the dataviz
+     validator: CVD ΔE 10.8, normal-vision ΔE 18.6 on white. The status tones
+     above stay as they are — those sit behind text labels, so they never need
+     this separation. Do not "simplify" these back into --color-tone-*-solid. */
+  --color-arc-open: #d34f14;
+  --color-arc-info: #2447c6;
+  --color-arc-warn: #e0a020;
+  --color-arc-ok: #10916a;
+
+  /* Advisory "auto-filled recommendation" panels and the record-access banner. */
+  --color-note-bg: #fbf6ee;
+  --color-note-field: #fdfbf6;
+  --color-note-line: #efe2cb;
+  --color-note-ink: #4a4232;
+  --color-note-label: #8a5a18;
+
+  /* Hatched stand-ins for field photos. */
+  --color-hatch-a: #edefea;
+  --color-hatch-b: #e4e7e1;
+
+  /* Project-map apartment fills — the level of completion painted into each cell. */
+  --color-fill-prog-a: #dcebe2;
+  --color-fill-prog-b: #c2dfce;
+  --color-fill-done-a: #b9e0c9;
+  --color-fill-done-b: #a0d4b4;
+  --color-fill-late-a: #f3e6c2;
+  --color-fill-late-b: #ead79e;
+
   --animate-rise: rise 0.45s ease both;
   --animate-sheet-up: sheetUp 0.24s ease both;
   --animate-shim: shim 1.1s linear infinite;
@@ -97,6 +162,64 @@ html[data-theme='dark'] {
   --color-ok: #45c692;
   --color-warn: #ebbe52;
   --color-info: #93a9ff;
+
+  /* Tinted surfaces, not pastels: each is the tone's hue at low luminance so it
+     recedes into the card instead of glowing against it. The -fg/-solid values
+     are the light, desaturated end of the hue for legibility on dark. */
+  --color-brand-soft: #3a2015;
+  --color-brand-ring: #5c3520;
+  --color-ok-soft: #122f24;
+  --color-danger-soft: #3a1c17;
+  --color-warn-soft: #362c16;
+  --color-info-soft: #1b2340;
+
+  --color-tone-open-bg: #3a2015;
+  --color-tone-open-fg: #ff9268;
+  --color-tone-open-solid: #ff8a64;
+
+  --color-tone-info-bg: #1b2340;
+  --color-tone-info-fg: #a8b9ff;
+  --color-tone-info-solid: #93a9ff;
+
+  --color-tone-warn-bg: #362c16;
+  --color-tone-warn-fg: #ebbe52;
+  --color-tone-warn-solid: #ebbe52;
+
+  --color-tone-ok-bg: #122f24;
+  --color-tone-ok-fg: #55d4a1;
+  --color-tone-ok-solid: #45c692;
+
+  --color-tone-neutral-bg: #262e37;
+  --color-tone-neutral-fg: #a9b5bf;
+  --color-tone-neutral-solid: #8a96a0;
+
+  --color-tone-danger-solid: #ff7a5c;
+
+  --color-note-bg: #2b2418;
+  --color-note-field: #241e14;
+  --color-note-line: #4a4028;
+  --color-note-ink: #e2d8c3;
+  --color-note-label: #e0b769;
+
+  --color-hatch-a: #232b34;
+  --color-hatch-b: #2b333d;
+
+  /* Dark arcs are re-derived, not lightened: the validator's dark lightness band
+     is 0.48–0.67, so the light steps are far too bright to reuse. All-pairs
+     CVD ΔE 9.7, normal-vision ΔE 15.6 on the dark card. */
+  --color-arc-open: #ae3f2c;
+  --color-arc-info: #3a69ad;
+  --color-arc-warn: #a67d00;
+  --color-arc-ok: #129a75;
+
+  /* Map fills stay readable as *fills* on dark: deep, desaturated hue blocks
+     that the white cell label still reads against. */
+  --color-fill-prog-a: #1d3a2e;
+  --color-fill-prog-b: #24493a;
+  --color-fill-done-a: #1c4d38;
+  --color-fill-done-b: #246047;
+  --color-fill-late-a: #3d3418;
+  --color-fill-late-b: #4d4120;
 }
 
 body {

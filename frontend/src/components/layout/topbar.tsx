@@ -72,14 +72,19 @@ export function Topbar() {
           {theme === 'dark' ? <Sun className="h-3.75 w-3.75" /> : <Moon className="h-3.75 w-3.75" />}
         </button>
 
-        <button
-          onClick={() => setNotifOpen((o) => !o)}
-          title="შეტყობინებები"
-          className="relative grid h-8.5 w-8.5 cursor-pointer place-items-center rounded-lg text-mut-3 hover:bg-soft"
-        >
-          <Bell className="h-4.25 w-4.25" />
-          <span className="absolute right-1.5 top-1.5 h-1.75 w-1.75 rounded-full border-[1.5px] border-card bg-brand" />
-        </button>
+        {/* The panel anchors to this wrapper, so it drops directly under the bell
+            rather than under the header's right edge. */}
+        <div className="relative">
+          <button
+            onClick={() => setNotifOpen((o) => !o)}
+            title="შეტყობინებები"
+            className="relative grid h-8.5 w-8.5 cursor-pointer place-items-center rounded-lg text-mut-3 hover:bg-soft"
+          >
+            <Bell className="h-4.25 w-4.25" />
+            <span className="absolute right-1.5 top-1.5 h-1.75 w-1.75 rounded-full border-[1.5px] border-card bg-brand" />
+          </button>
+          {notifOpen && <NotificationPanel onClose={() => setNotifOpen(false)} />}
+        </div>
 
         <Select
           value={role?.id}
@@ -114,7 +119,6 @@ export function Topbar() {
         </div>
       </div>
 
-      {notifOpen && <NotificationPanel onClose={() => setNotifOpen(false)} />}
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
   )

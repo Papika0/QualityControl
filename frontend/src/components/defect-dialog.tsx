@@ -23,7 +23,7 @@ const ANNOTATION_TOOLS = [
 
 /** Hatched placeholder standing in for a field photo. */
 const HATCH =
-  'bg-[repeating-linear-gradient(45deg,#EDEFEA,#EDEFEA_7px,#E4E7E1_7px,#E4E7E1_14px)]'
+  'bg-[repeating-linear-gradient(45deg,var(--color-hatch-a),var(--color-hatch-a)_7px,var(--color-hatch-b)_7px,var(--color-hatch-b)_14px)]'
 
 const TIMELINE = (d: Defect) => [
   { t: 'შეიქმნა ველზე', d: `18 ივლ 09:14 · ${d.who}` },
@@ -235,8 +235,13 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
                     viewBox="0 0 110 70"
                     fill="none"
                   >
-                    <path d="M105 8 L38 52" stroke="#FF4D00" strokeWidth="3" />
-                    <path d="M50 54 L38 52 L44 41" stroke="#FF4D00" strokeWidth="3" fill="none" />
+                    <path d="M105 8 L38 52" stroke="var(--color-brand)" strokeWidth="3" />
+                    <path
+                      d="M50 54 L38 52 L44 41"
+                      stroke="var(--color-brand)"
+                      strokeWidth="3"
+                      fill="none"
+                    />
                   </svg>
                   <span className="absolute left-[58%] top-[8%] rounded-lg bg-brand px-2.5 py-1 text-[11px] font-bold text-white">
                     არასწორი წებო
@@ -294,12 +299,12 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
               <InfoTile label="შემსრულებელი" value={defect.sub} />
             </div>
 
-            <div className="mb-3.25 rounded-[11px] border border-[#EFE2CB] bg-[#FBF6EE] px-3.5 py-3">
-              <div className="mb-1.25 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.08em] text-[#8A5A18]">
+            <div className="mb-3.25 rounded-[11px] border border-note-line bg-note-bg px-3.5 py-3">
+              <div className="mb-1.25 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.08em] text-note-label">
                 <Wand2 className="h-2.75 w-2.75 flex-none" />
                 გამოსასწორებელი ღონისძიება — ავტომატური
               </div>
-              <div className="text-[12.5px] leading-[1.6] text-[#4A4232]">
+              <div className="text-[12.5px] leading-[1.6] text-note-ink">
                 {RECO[defect.cat] ?? RECO.Other}
               </div>
             </div>
@@ -389,7 +394,7 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
         <DialogFooter className="flex-wrap justify-start gap-2.5">
           <Button
             variant="secondary"
-            className="bg-ink text-card hover:bg-[#2A3138]"
+            className="bg-ink text-card hover:bg-ink/85"
             onClick={advance}
             disabled={!next || setStatus.isPending}
           >
@@ -404,7 +409,7 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
           {canReopen && (
             <Button
               variant="outline"
-              className="border-[#E3B9B0] text-danger hover:bg-danger-soft"
+              className="border-danger/45 text-danger hover:bg-danger-soft"
               onClick={reopen}
               disabled={setStatus.isPending}
             >

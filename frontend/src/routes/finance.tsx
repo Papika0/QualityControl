@@ -37,7 +37,7 @@ function FinancePage() {
     <div>
       <PageHeader title="ფინანსები" subtitle="კონტრაქტორების ხელშეკრულებები, გადახდები და retention" />
 
-      <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+      <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(200px,1fr))] [&>*]:min-w-0">
         {KPIS.map((k) => (
           <Card key={k.l}>
             <CardContent className="p-4">

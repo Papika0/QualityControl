@@ -4,7 +4,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { Plus, X } from 'lucide-react'
 import { tasksQuery } from '@/api/queries'
 import { useSetTaskColumn } from '@/api/mutations'
-import { TASK_TYPES, type TaskColumn } from '@/data/domain'
+import { PRI_DOT, TASK_TYPES, type TaskColumn } from '@/data/domain'
 import { PageHeader } from '@/components/page-header'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -29,13 +29,12 @@ export const Route = createFileRoute('/tasks')({
 })
 
 const COLUMNS: { key: TaskColumn; label: string; dot: string }[] = [
-  { key: 'new', label: 'ახალი', dot: '#C2410C' },
-  { key: 'prog', label: 'მიმდინარე', dot: '#2447C6' },
-  { key: 'check', label: 'შემოწმებაზე', dot: '#92670A' },
-  { key: 'done', label: 'დასრულებული', dot: '#0E7D52' },
+  { key: 'new', label: 'ახალი', dot: 'var(--color-tone-open-solid)' },
+  { key: 'prog', label: 'მიმდინარე', dot: 'var(--color-tone-info-solid)' },
+  { key: 'check', label: 'შემოწმებაზე', dot: 'var(--color-tone-warn-solid)' },
+  { key: 'done', label: 'დასრულებული', dot: 'var(--color-tone-ok-solid)' },
 ]
 
-const PRI_DOT = { high: '#C0361F', med: '#92670A', low: '#8A949B' } as const
 
 const ALL = 'ყველა'
 
@@ -123,7 +122,7 @@ function TasksPage() {
         )}
       </div>
 
-      <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+      <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(200px,1fr))] [&>*]:min-w-0">
         {COLUMNS.map((col) => {
           const cards = filtered.filter((t) => t.col === col.key)
           return (

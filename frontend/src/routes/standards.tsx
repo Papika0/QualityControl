@@ -93,7 +93,7 @@ function StandardsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
+        <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(260px,1fr))] [&>*]:min-w-0">
           {rows.map((s) => (
             <Card key={s.code} className="cursor-pointer transition-shadow hover:shadow-md">
               <CardContent className="p-4">

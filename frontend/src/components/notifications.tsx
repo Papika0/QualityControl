@@ -12,28 +12,28 @@ interface Notification {
 
 const NOTIFICATIONS: Notification[] = [
   {
-    color: '#C0361F',
+    color: 'var(--color-tone-danger-solid)',
     title: 'ვადა გავიდა: QA-0903-021',
     desc: 'კაბელის შეცვლა · შპს ტექნო-ინსტალაცია',
     ago: '12 წთ',
     to: { path: '/qa', defectId: 'QA-0903-021' },
   },
   {
-    color: '#FF4D00',
+    color: 'var(--color-brand)',
     title: 'ახალი ხარვეზი: ბინა 1204',
     desc: 'Tiles · სველი წერტილი · მაღალი პრიორიტეტი',
     ago: '1 სთ',
     to: { path: '/qa', defectId: 'QA-1204-017' },
   },
   {
-    color: '#2447C6',
+    color: 'var(--color-tone-info-solid)',
     title: 'ბინა 1204 — პროგრესი განახლდა',
     desc: 'Tile ეტაპი დასრულდა',
     ago: '3 სთ',
     to: { path: '/apartments', aptNo: '1204' },
   },
   {
-    color: '#0E7D52',
+    color: 'var(--color-tone-ok-solid)',
     title: 'ხარვეზი დაიხურა: QA-0611-017',
     desc: 'ი/მ ჯ. წიკლაური · QA ვიზუალური კონტროლი',
     ago: 'გუშინ',
@@ -62,10 +62,12 @@ export function NotificationPanel({ onClose }: { onClose: () => void }) {
     else navigate({ to: '/apartments/$aptNo', params: { aptNo: n.to.aptNo } })
   }
 
+  // Anchored to the bell wrapper in topbar.tsx: right-aligned to the button and
+  // dropping just below it. Width is capped so it never overflows a narrow viewport.
   return (
     <div
       ref={ref}
-      className="absolute right-2.5 top-13 z-150 w-[min(350px,calc(100vw-20px))] animate-rise overflow-hidden rounded-xl border border-line bg-card text-ink shadow-[0_20px_50px_rgba(14,20,26,0.25)]"
+      className="absolute right-0 top-full z-150 mt-2 w-[min(350px,calc(100vw-20px))] animate-rise overflow-hidden rounded-xl border border-line bg-card text-ink shadow-[0_20px_50px_rgba(14,20,26,0.25)]"
     >
       <div className="flex items-center justify-between border-b border-line-soft bg-card-2 px-3.5 py-2.75">
         <span className="text-[10.5px] font-semibold uppercase tracking-[0.12em]">შეტყობინებები</span>
