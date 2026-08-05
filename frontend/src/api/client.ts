@@ -41,7 +41,10 @@ const pad2 = (n: number) => String(n).padStart(2, '0')
 
 const isoDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 
-function addDays(date: string, days: number): string {
+/** Days a newly filed defect gets to be fixed — the deadline is not user-set. */
+export const DEFECT_DUE_DAYS = 14
+
+export function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00`)
   d.setDate(d.getDate() + days)
   return isoDate(d)
@@ -152,7 +155,7 @@ export const api = {
         st: 'ღია',
         who: input.who,
         sub: input.sub,
-        due: addDays(TODAY, 14),
+        due: addDays(TODAY, DEFECT_DUE_DAYS),
         desc: input.desc,
       }
 

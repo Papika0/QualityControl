@@ -1,97 +1,178 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { ROLES, type RoleId } from '@/data/domain'
 import { useSession } from '@/lib/session'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+const LABEL = 'mb-1.5 block text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mut'
+const FIELD = 'w-full rounded-lg border border-line-2 bg-card px-3 py-2.5 text-sm'
+
+const FEATURES = [
+  'ხარვეზის დაფიქსირება ველზე — ფოტოთი, offline რეჟიმშიც',
+  '358 ბინის პროგრესი ერთ ინტერაქტიულ რუკაზე',
+  'ავტომატური PDF ანგარიშები და შეტყობინებები',
+]
+
+const STATS = [
+  ['24', 'მოდული'],
+  ['15', 'როლი · RBAC'],
+  ['3', 'Web · iOS · Android'],
+]
+
+/** Roles that must clear a second factor before entering. */
+const NEEDS_2FA: RoleId[] = ['admin', 'techdir']
 
 export function LoginScreen() {
   const { login } = useSession()
   const navigate = useNavigate()
   const [roleId, setRoleId] = useState<RoleId>('pm')
   const [step, setStep] = useState<1 | 2>(1)
-  const OTP = ['4', '0', '7', '2', '9', '1']
+  const [otp, setOtp] = useState(['', '', '', '', '', ''])
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const finish = () => {
     login(roleId)
     navigate({ to: roleId === 'owner' ? '/apartments/$aptNo' : '/', params: { aptNo: '1204' } })
   }
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-page p-4">
-      <Card className="w-full max-w-md">
-        <CardContent className="p-8">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-lg font-extrabold text-white">K</div>
-            <div>
-              <div className="text-lg font-extrabold">ნუცუბიძე 2ა</div>
-              <div className="text-xs text-mut">ხარისხის კონტროლის პლატფორმა</div>
-            </div>
-          </div>
+  const setOtpAt = (i: number, v: string) => {
+    const digit = v.replace(/\D/g, '').slice(-1)
+    setOtp((prev) => prev.map((d, j) => (j === i ? digit : d)))
+    if (digit && i < 5) otpRefs.current[i + 1]?.focus()
+  }
 
-          {step === 1 ? (
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-xs font-bold text-mut-3">როლი (დემო)</label>
-                <Select value={roleId} onValueChange={(v) => setRoleId(v as RoleId)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLES.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="mt-1.5 text-[11px] text-mut">
-                  {ROLES.find((r) => r.id === roleId)?.scope}
-                </p>
+  return (
+    <div className="flex min-h-screen flex-wrap overflow-y-auto bg-shell">
+      {/* Marketing pane */}
+      <div className="relative flex min-w-[min(460px,100%)] flex-[1.2] flex-col justify-between gap-10 overflow-hidden p-[clamp(28px,5vw,64px)] text-white">
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: 'linear-gradient(115deg,rgba(13,17,21,.97) 30%,rgba(13,17,21,.72))',
+          }}
+        />
+        <div className="relative z-2 flex items-center gap-2.75">
+          <div className="grid h-7.5 w-7.5 place-items-center rounded-lg bg-brand font-display text-[17px] font-extrabold">
+            K
+          </div>
+          <div className="font-display text-lg font-bold tracking-[0.2em]">KORPUS</div>
+        </div>
+
+        <div className="relative z-2 max-w-[560px] animate-rise">
+          <div className="mb-3.5 font-display text-[11px] font-semibold uppercase tracking-[0.14em] text-[#FF7A40]">
+            Construction Operations Platform
+          </div>
+          <h1 className="mb-4.5 text-[clamp(26px,3.6vw,40px)] font-extrabold leading-[1.16]">
+            მთელი სამშენებლო ობიექტი — ერთ ეკრანზე
+          </h1>
+          <p className="mb-7.5 max-w-[460px] text-[15px] text-[#9AA6AE]">
+            პროექტების მართვა, QA/QC ინსპექტირება, დოკუმენტბრუნვა და ავტომატური ანგარიშგება — Web, iOS
+            და Android.
+          </p>
+          <div className="flex flex-col gap-3.5">
+            {FEATURES.map((f, i) => (
+              <div key={f} className="flex items-baseline gap-3.5">
+                <span className="font-mono text-xs text-[#FF7A40]">{String(i + 1).padStart(2, '0')}</span>
+                <span className="text-[14.5px] text-[#D8DEE2]">{f}</span>
               </div>
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={() => {
-                  if (roleId === 'admin' || roleId === 'techdir') setStep(2)
-                  else finish()
-                }}
+            ))}
+          </div>
+        </div>
+
+        <div className="relative z-2 flex flex-wrap gap-[clamp(20px,4vw,48px)] border-t border-[#262C33] pt-5.5">
+          {STATS.map(([v, l]) => (
+            <div key={l}>
+              <div className="font-display text-2xl font-bold">{v}</div>
+              <div className="text-[11.5px] text-[#8B959D]">{l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Form pane */}
+      <div className="grid min-w-[min(400px,100%)] flex-1 place-items-center bg-page p-[clamp(20px,4vw,48px)]">
+        <div className="w-[min(400px,100%)] animate-rise rounded-[14px] border border-line bg-card p-7 shadow-[0_24px_60px_rgba(20,24,28,0.10)]">
+          {step === 1 ? (
+            <>
+              <div className="mb-1 text-[19px] font-bold">შესვლა სისტემაში</div>
+              <div className="mb-5 text-[12.5px] text-mut">
+                დემო რეჟიმი — აირჩიეთ როლი და ნახეთ, რას ხედავს თითოეული
+              </div>
+
+              <div className="mb-3.25">
+                <label className={LABEL} htmlFor="login-email">
+                  ელფოსტა
+                </label>
+                <input id="login-email" type="email" defaultValue="n.beridze@company.ge" className={FIELD} />
+              </div>
+              <div className="mb-3.25">
+                <label className={LABEL} htmlFor="login-password">
+                  პაროლი
+                </label>
+                <input id="login-password" type="password" defaultValue="0000000000" className={FIELD} />
+              </div>
+              <div className="mb-5">
+                <label className={LABEL} htmlFor="login-role">
+                  როლი (დემო)
+                </label>
+                <select
+                  id="login-role"
+                  className={`${FIELD} cursor-pointer`}
+                  value={roleId}
+                  onChange={(e) => setRoleId(e.target.value as RoleId)}
+                >
+                  {ROLES.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                className="w-full cursor-pointer rounded-lg bg-brand py-2.75 text-sm font-bold text-white shadow-[0_4px_12px_rgba(255,77,0,0.25)] transition-colors hover:bg-brand-hover"
+                onClick={() => (NEEDS_2FA.includes(roleId) ? setStep(2) : finish())}
               >
                 შესვლა
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <div className="text-sm font-bold">ორფაქტორიანი დადასტურება</div>
-                <p className="mt-1 text-xs text-mut">
-                  ადმინისტრატორისა და ტექ. დირექტორისთვის 2FA სავალდებულოა. კოდი გაგზავნილია მოწყობილობაზე.
-                </p>
+              </button>
+              <div className="mt-3.5 text-center text-[11.5px] text-mut-2">
+                ადმინისტრატორი და დირექტორი — სავალდებულო 2FA
               </div>
-              <div className="flex justify-between gap-2">
-                {OTP.map((d, i) => (
-                  <div
+            </>
+          ) : (
+            <>
+              <div className="mb-1 text-[19px] font-bold">ორფაქტორიანი ავთენტიკაცია</div>
+              <div className="mb-5 text-[12.5px] text-mut">
+                შეიყვანეთ 6-ნიშნა კოდი ავთენტიკატორიდან — სავალდებულოა მაღალი უფლების როლებზე
+              </div>
+              <div className="mb-5 flex gap-2">
+                {otp.map((d, i) => (
+                  <input
                     key={i}
-                    className="flex h-12 w-10 items-center justify-center rounded-lg border border-line-2 bg-soft text-lg font-extrabold"
-                  >
-                    {d}
-                  </div>
+                    ref={(el) => {
+                      otpRefs.current[i] = el
+                    }}
+                    value={d}
+                    maxLength={1}
+                    inputMode="numeric"
+                    aria-label={`კოდის ${i + 1} ციფრი`}
+                    onChange={(e) => setOtpAt(i, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Backspace' && !otp[i] && i > 0) otpRefs.current[i - 1]?.focus()
+                    }}
+                    className="w-full rounded-lg border border-line-2 py-2.75 text-center font-mono text-xl"
+                  />
                 ))}
               </div>
-              <Button className="w-full" size="lg" onClick={finish}>
-                დადასტურება
-              </Button>
               <button
-                className="w-full text-center text-xs font-semibold text-mut-3 hover:text-ink cursor-pointer"
-                onClick={() => setStep(1)}
+                className="w-full cursor-pointer rounded-lg bg-ink py-2.75 text-sm font-bold text-white transition-colors hover:bg-[#2A3138]"
+                onClick={finish}
               >
-                ← უკან
+                დადასტურება
               </button>
-            </div>
+            </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

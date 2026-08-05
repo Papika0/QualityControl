@@ -123,7 +123,7 @@ function TasksPage() {
         )}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
         {COLUMNS.map((col) => {
           const cards = filtered.filter((t) => t.col === col.key)
           return (
