@@ -18,14 +18,11 @@ import { NewDefectDialog } from '@/components/new-defect-dialog'
 
 const STATUSES = DEFECT_FLOW
 
-type SortKey = 'due' | 'pri' | 'st' | 'cat' | 'id'
+type SortKey = 'due' | 'pri'
 
 const SORT_LABEL: Record<SortKey, string> = {
   due: 'ვადა',
   pri: 'პრიორიტეტი',
-  st: 'სტატუსი',
-  cat: 'კატეგორია',
-  id: 'ID',
 }
 
 // Typed search params — filters live in the URL, so filtered views are linkable.
@@ -89,11 +86,10 @@ function QaPage() {
     if (search.cat) list = list.filter((d) => d.cat === search.cat)
 
     const cmp: Record<SortKey, (a: Defect, b: Defect) => number> = {
-      due: (a, b) => a.due.localeCompare(b.due),
-      pri: (a, b) => PRI_WEIGHT[a.pri] - PRI_WEIGHT[b.pri],
-      st: (a, b) => STATUSES.indexOf(a.st) - STATUSES.indexOf(b.st),
-      cat: (a, b) => a.cat.localeCompare(b.cat),
-      id: (a, b) => a.id.localeCompare(b.id),
+      // Nearest deadline first — overdue rows lead, since their date is furthest back.
+      due: (a, b) => a.due.localeCompare(b.due) || PRI_WEIGHT[a.pri] - PRI_WEIGHT[b.pri],
+      // Highest priority on top, nearest deadline first inside each priority band.
+      pri: (a, b) => PRI_WEIGHT[a.pri] - PRI_WEIGHT[b.pri] || a.due.localeCompare(b.due),
     }
     return [...list].sort(cmp[sort])
   }, [all, search, isSub, sort])
@@ -303,45 +299,70 @@ function QaPage() {
         </div>
       ) : (
         // Virtualized card list — the prototype's row-cards, windowed so 300+
-        // defects stay smooth.
-        <div ref={parentRef} className="min-h-0 flex-1 overflow-auto">
-          <div
-            className="relative min-w-240"
-            style={{ height: virtualizer.getTotalSize() }}
-          >
-            {virtualizer.getVirtualItems().map((vi) => {
-              const d = rows[vi.index]!
-              const late = d.due < TODAY && d.st !== 'დახურული'
-              return (
-                <button
-                  key={d.id}
-                  onClick={() => setSelectedId(d.id)}
-                  style={{ transform: `translateY(${vi.start}px)`, height: ROW_SIZE - 8 }}
-                  className={cn(
-                    'absolute left-0 flex w-full cursor-pointer items-center gap-3 rounded-[11px] border border-line bg-card px-3.75 text-left transition-all hover:-translate-y-px hover:border-brand/60 hover:shadow-[0_4px_14px_rgba(20,24,28,0.06)]',
-                    d.id === flashId && 'border-brand-ring bg-brand-soft ring-2 ring-brand-ring',
-                  )}
-                >
-                  <span
-                    className="h-2 w-2 flex-none rounded-full"
-                    style={{ background: PRI_DOT[d.pri] }}
-                  />
-                  <span className="min-w-24 flex-none font-mono text-[11.5px] text-mut">{d.id}</span>
-                  <span className="min-w-21.5 text-[13px] font-bold">{d.cat}</span>
-                  <span className="min-w-14 text-xs text-mut-3">{d.apt}</span>
-                  <span className="min-w-24 text-xs text-mut">{d.room}</span>
-                  <span className="min-w-32.5 flex-1 truncate text-xs text-mut-3">
-                    {d.sub} · {d.who}
-                  </span>
-                  <span
-                    className={`font-mono text-[11px] font-semibold ${late ? 'text-danger' : 'text-mut'}`}
-                  >
-                    {d.due}
-                  </span>
-                  <StatusBadge status={d.st} className="min-w-18.5 justify-center" />
-                </button>
-              )
-            })}
+        // defects stay smooth. The header and the rows share one horizontal
+        // scroller so the labels stay over their columns; only the inner box
+        // scrolls vertically, which keeps it the virtualizer's scroll element.
+        <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
+          <div className="flex h-full min-w-240 flex-col">
+            {/* Column labels. Widths mirror the card cells below, and the card's
+                1px border + px-3.75 padding lines up with this row's px-4. */}
+            <div className="mb-2 flex flex-none items-center gap-3 border-b border-line px-4 pb-2.5 text-[12.5px] font-medium text-mut-3">
+              <span className="w-24 flex-none">პრიორიტეტი</span>
+              <span className="w-24 flex-none">ID</span>
+              <span className="w-25 flex-none">კატეგორია</span>
+              <span className="w-14 flex-none">ბინა</span>
+              <span className="w-26 flex-none">ოთახი</span>
+              <span className="min-w-32.5 flex-1">შემსრულებელი · პასუხისმგებელი</span>
+              <span className="w-19 flex-none">ვადა</span>
+              <span className="w-18.5 flex-none text-center">სტატუსი</span>
+            </div>
+
+            <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto">
+              <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
+                {virtualizer.getVirtualItems().map((vi) => {
+                  const d = rows[vi.index]!
+                  const late = d.due < TODAY && d.st !== 'დახურული'
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => setSelectedId(d.id)}
+                      style={{ transform: `translateY(${vi.start}px)`, height: ROW_SIZE - 8 }}
+                      className={cn(
+                        'absolute left-0 flex w-full cursor-pointer items-center gap-3 rounded-[11px] border border-line bg-card px-3.75 text-left transition-all hover:-translate-y-px hover:border-brand/60 hover:shadow-[0_4px_14px_rgba(20,24,28,0.06)]',
+                        d.id === flashId && 'border-brand-ring bg-brand-soft ring-2 ring-brand-ring',
+                      )}
+                    >
+                      {/* Priority as a labelled tag — the bare dot left the level
+                          readable only by hue, and hue alone is not a label. */}
+                      {/* The pill hugs its label; the wrapper holds the column
+                          width so the ID column starts at the same x on every row. */}
+                      <span className="flex w-24 flex-none">
+                        <span className="flex items-center gap-1.5 rounded-full bg-soft-2 px-2 py-0.75 text-[11px] font-semibold text-mut-3">
+                          <span
+                            className="h-1.5 w-1.5 flex-none rounded-full"
+                            style={{ background: PRI_DOT[d.pri] }}
+                          />
+                          {PRI_LABEL[d.pri]}
+                        </span>
+                      </span>
+                      <span className="w-24 flex-none font-mono text-[11.5px] text-mut">{d.id}</span>
+                      <span className="w-25 flex-none truncate text-[13px] font-bold">{d.cat}</span>
+                      <span className="w-14 flex-none text-xs text-mut-3">{d.apt}</span>
+                      <span className="w-26 flex-none truncate text-xs text-mut">{d.room}</span>
+                      <span className="min-w-32.5 flex-1 truncate text-xs text-mut-3">
+                        {d.sub} · {d.who}
+                      </span>
+                      <span
+                        className={`w-19 flex-none font-mono text-[11px] font-semibold ${late ? 'text-danger' : 'text-mut'}`}
+                      >
+                        {d.due}
+                      </span>
+                      <StatusBadge status={d.st} className="w-18.5 flex-none justify-center" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}
