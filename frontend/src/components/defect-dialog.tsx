@@ -6,7 +6,7 @@ import { StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useSetDefectStatus } from '@/api/mutations'
 import { defectPhotosQuery } from '@/api/queries'
-import type { PhotoRow } from '@/api/seed'
+import type { Photo } from '@/api/client'
 import { useSession } from '@/lib/session'
 import { useToast } from '@/lib/toast'
 import { useBlobUrls } from '@/lib/blob-url'
@@ -48,7 +48,7 @@ const COMMENTS = [
 ]
 
 /** Stable empty list — a fresh `[]` each render would re-run useBlobUrls forever. */
-const NO_PHOTOS: PhotoRow[] = []
+const NO_PHOTOS: Photo[] = []
 
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
