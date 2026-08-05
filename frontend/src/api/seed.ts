@@ -12,15 +12,19 @@
 import { hash01 } from '@/lib/utils'
 import type { Annotation } from '@/lib/annotate'
 import {
-  CATS, PEOPLE, PROJECTS, RECO, ROOMS, SUBS, TASK_TYPES, TODAY,
+  CATS, DEFECT_FLOW, PEOPLE, PROJECTS, RECO, ROOMS, SUBS, TASK_TYPES,
   type Apartment, type ArchiveRow, type AuditRow, type ContractRow, type Defect,
-  type DocRow, type Priority, type ProjectId, type Standard, type Task,
-  type TaskComment, type UserRow,
+  type DefectComment, type DefectEvent, type DefectStatus, type DocRow,
+  type Priority, type ProjectId, type Standard, type Task, type TaskComment,
+  type UserRow,
 } from '@/data/domain'
 import type { WriteOp } from './idb'
 import type { StoreName } from './schema'
 
-export const SEED_VERSION = 1
+// v2 dropped the pre-written task comments — comments are hand-authored only.
+// v3 gave every seeded defect its own status history instead of one shared set
+// of dates hardcoded in the dialog.
+export const SEED_VERSION = 3
 
 /**
  * Stored rows carry an `ord` so lists come back in generated order rather than
@@ -37,7 +41,13 @@ export type ArchiveDocRow = Ordered<ArchiveRow>
 export type ContractDocRow = Ordered<ContractRow>
 export type AuditEntryRow = Ordered<AuditRow>
 export type UserAccountRow = Ordered<UserRow>
+
+/**
+ * Comments, on a task or on a defect. Never seeded: a comment is somebody's
+ * word, so the only rows that exist are the ones a user typed in the app.
+ */
 export type TaskCommentRow = Ordered<TaskComment>
+export type DefectCommentRow = Ordered<DefectComment>
 
 /**
  * A field photo. Never seeded — the demo dataset has no real imagery, so these
@@ -111,13 +121,45 @@ function generateProject(proj: ProjectId): { apartments: AptRow[]; defects: Defe
   return { apartments, defects }
 }
 
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+/** `YYYY-MM-DD` shifted by whole days, as a local ISO stamp. */
+function shift(date: string, days: number, hour: number, minute: number): string {
+  const d = new Date(`${date}T00:00:00`)
+  d.setDate(d.getDate() + days)
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(hour)}:${pad2(minute)}:00`
+}
+
+/**
+ * The stamps a seeded defect collected on its way to its current status,
+ * counted back from its own deadline. Hash-derived like everything else here,
+ * so each demo record carries its own dates instead of one shared set.
+ */
+function generateHistory(k: string, row: Defect): DefectEvent[] {
+  // Filed 9–16 days before the deadline, then worked through the flow.
+  const filed = -(9 + Math.floor(hash01(k + 'h') * 8))
+  const steps: [DefectStatus, number, string][] = [
+    ['ღია', filed, row.who],
+    ['მიმდინარე', filed + 1 + Math.floor(hash01(k + 'h1') * 2), row.who],
+    ['შემოწმებაზე', filed + 4 + Math.floor(hash01(k + 'h2') * 4), row.sub],
+    // Starts past the previous stage's latest day, so the strip always reads
+    // forward in time whichever days the hash picks.
+    ['დახურული', filed + 8 + Math.floor(hash01(k + 'h3') * 4), row.who],
+  ]
+  return steps.slice(0, DEFECT_FLOW.indexOf(row.st) + 1).map(([st, days, who], i) => ({
+    st,
+    at: shift(row.due, days, 8 + Math.floor(hash01(k + 'ht' + i) * 9), Math.floor(hash01(k + 'hm' + i) * 60)),
+    who,
+  }))
+}
+
 function generateDefects(proj: ProjectId, no: string, count: number, baseOrd: number): DefectRow[] {
   const out: DefectRow[] = []
   for (let i = 0; i < count; i++) {
     const k = proj + no + 'q' + i
     const cat = CATS[Math.floor(hash01(k + 'c') * CATS.length)]!
     const id = `QA-${no}-${String(17 + i * 4).padStart(3, '0')}`
-    out.push({
+    const row: DefectRow = {
       key: defectKey(proj, id),
       proj,
       ord: baseOrd + i,
@@ -130,8 +172,11 @@ function generateDefects(proj: ProjectId, no: string, count: number, baseOrd: nu
       who: PEOPLE[Math.floor(hash01(k + 'w') * 7)]!,
       sub: SUBS[Math.floor(hash01(k + 'u') * 4)]!,
       due: `2026-0${7 + Math.floor(hash01(k + 'd') * 2)}-${String(4 + Math.floor(hash01(k + 'e') * 22)).padStart(2, '0')}`,
-      desc: (RECO[cat] ?? RECO.Other!).split('.')[0] + '.',
-    })
+      // The corrective measure the filing form would have proposed for this
+      // category — the same text a real filing starts from.
+      desc: RECO[cat] ?? RECO.Other!,
+    }
+    out.push({ ...row, history: generateHistory(k, row) })
   }
   return out
 }
@@ -217,17 +262,6 @@ const USERS: UserRow[] = [
   { ini: 'დგ', name: 'დავით გოგოლაძე', mail: 'd.gogoladze@gmail.com', role: 'მფლობელი (Portal)', scope: 'A-1204', active: false },
 ]
 
-/** Two opening comments per task, dated relative to the demo's "today". */
-function seedComments(task: Task): TaskCommentRow[] {
-  const yesterday = new Date(`${TODAY}T00:00:00`)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const y = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
-  return [
-    { id: `${task.id}-c1`, ord: 0, taskId: task.id, who: task.who, at: `${y}T16:40:00`, text: 'მივიღე დავალება — დილიდან ვიწყებ.' },
-    { id: `${task.id}-c2`, ord: 1, taskId: task.id, who: 'ნ. ბერიძე', at: `${TODAY}T09:05:00`, text: 'გთხოვთ, ფოტოფიქსაცია თითო ბინაზე ცალ-ცალკე.' },
-  ]
-}
-
 // -------------------------------------------------------------------- seeding
 
 const withOrd = <T,>(rows: T[]): Ordered<T>[] => rows.map((r, ord) => ({ ...r, ord }))
@@ -249,7 +283,6 @@ export function seedRecords(): WriteOp<StoreName>[] {
     ...puts('apartments', apartments),
     ...puts('defects', defects),
     ...puts('tasks', withOrd(TASKS)),
-    ...puts('taskComments', TASKS.flatMap(seedComments)),
     ...puts('standards', withOrd(STANDARDS)),
     ...puts('drawings', withOrd(DRAWINGS)),
     ...puts('ownerDocs', withOrd(OWNER_DOCS)),

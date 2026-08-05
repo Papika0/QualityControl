@@ -36,6 +36,16 @@ export function useSetDefectStatus() {
   })
 }
 
+export function useAddDefectComment(defectId: string) {
+  const qc = useQueryClient()
+  const { project } = useSession()
+  const actor = useActor()
+  return useMutation({
+    mutationFn: (text: string) => api.defects.addComment(project.id, defectId, actor, text),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['defectComments', project.id, defectId] }),
+  })
+}
+
 export function useSetTaskColumn() {
   const qc = useQueryClient()
   const actor = useActor()

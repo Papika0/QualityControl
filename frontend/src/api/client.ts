@@ -9,9 +9,9 @@
 
 import {
   TODAY,
-  type Apartment, type ArchiveRow, type ContractRow, type Defect, type DefectStatus,
-  type DocRow, type Priority, type ProjectId, type Standard, type Task,
-  type TaskColumn, type TaskComment, type UserRow,
+  type Apartment, type ArchiveRow, type ContractRow, type Defect, type DefectComment,
+  type DefectStatus, type DocRow, type Priority, type ProjectId, type Standard,
+  type Task, type TaskColumn, type TaskComment, type UserRow,
 } from '@/data/domain'
 import type { Annotation } from '@/lib/annotate'
 import { blobBytes } from '@/lib/image'
@@ -20,8 +20,8 @@ import { db, resetDatabase, type StoreName } from './schema'
 import {
   aptKey, defectKey,
   type AptRow, type ArchiveDocRow, type AuditEntryRow, type ContractDocRow,
-  type DefectRow, type DocumentRow, type PhotoRow, type StandardRow, type TaskCommentRow,
-  type TaskRow, type UserAccountRow,
+  type DefectCommentRow, type DefectRow, type DocumentRow, type PhotoRow,
+  type StandardRow, type TaskCommentRow, type TaskRow, type UserAccountRow,
 } from './seed'
 
 type Op = WriteOp<StoreName>
@@ -43,7 +43,7 @@ const pad2 = (n: number) => String(n).padStart(2, '0')
 
 const isoDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 
-/** Days a newly filed defect gets to be fixed — the deadline is not user-set. */
+/** Days a newly filed defect gets to be fixed — the deadline the form starts on. */
 export const DEFECT_DUE_DAYS = 14
 
 export function addDays(date: string, days: number): string {
@@ -134,6 +134,8 @@ export interface NewDefectInput {
   sub: string
   /** QA inspector filing the defect. */
   who: string
+  /** Deadline as `YYYY-MM-DD`. Omitted falls back to the standard window. */
+  due?: string
   desc: string
   /** Evidence attached at filing time. Stored with the defect, in one transaction. */
   photos?: NewPhotoInput[]
@@ -186,8 +188,11 @@ export const api = {
         st: 'ღია',
         who: input.who,
         sub: input.sub,
-        due: addDays(TODAY, DEFECT_DUE_DAYS),
+        due: input.due || addDays(TODAY, DEFECT_DUE_DAYS),
         desc: input.desc,
+        // The first stamp of the process timeline. Every later status change
+        // appends its own, so the dialog never has to invent a date.
+        history: [{ st: 'ღია', at: new Date().toISOString(), who: actor }],
       }
 
       // Decoding to bytes happens up front, before the transaction opens — an
@@ -240,7 +245,14 @@ export const api = {
       const backend = await db()
       const current = await backend.get<DefectRow>('defects', defectKey(proj, id))
       if (!current) return null
-      const next: DefectRow = { ...current, st }
+      const next: DefectRow = {
+        ...current,
+        st,
+        history: [
+          ...(current.history ?? []),
+          { st, at: new Date().toISOString(), who: actor },
+        ],
+      }
       const siblings = await backend.getAll<DefectRow>('defects', 'by-apartment', [proj, current.apt])
 
       await backend.write([
@@ -254,6 +266,33 @@ export const api = {
         await auditOp(backend, 'სტატუსი შეიცვალა', `${id} → ${st}`, actor),
       ])
       return next
+    },
+
+    /** Discussion on one defect, oldest first. Nothing is seeded here. */
+    async comments(proj: ProjectId, id: string): Promise<DefectComment[]> {
+      const backend = await db()
+      return byOrd(await backend.getAll<DefectCommentRow>('defectComments', 'by-defect', defectKey(proj, id)))
+    },
+
+    async addComment(
+      proj: ProjectId,
+      id: string,
+      who: string,
+      text: string,
+    ): Promise<DefectComment> {
+      const backend = await db()
+      const defect = defectKey(proj, id)
+      const existing = await backend.getAll<DefectCommentRow>('defectComments', 'by-defect', defect)
+      const comment: DefectCommentRow = {
+        id: newId('CMT'),
+        ord: nextOrd(existing),
+        defect,
+        who,
+        at: new Date().toISOString(),
+        text,
+      }
+      await backend.write([{ store: 'defectComments', put: comment }])
+      return comment
     },
   },
 

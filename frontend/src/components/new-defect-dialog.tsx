@@ -80,6 +80,7 @@ export function NewDefectDialog({
   const [pri, setPri] = useState<Priority>('high')
   const [sub, setSub] = useState<string>(SUBS[0]!)
   const [who, setWho] = useState<string>(PEOPLE[1]!)
+  const [due, setDue] = useState(addDays(TODAY, DEFECT_DUE_DAYS))
   const [reco, setReco] = useState<string | null>(null)
   const [channels, setChannels] = useState<ChannelId[]>(['push', 'email'])
   const [photos, setPhotos] = useState<PreparedPhoto[]>([])
@@ -200,7 +201,8 @@ export function NewDefectDialog({
   const submit = () => {
     if (create.isPending || preparing > 0) return
     create.mutate(
-      { apt, room, cat, pri, sub, who, desc: desc.trim(), photos },
+      // A cleared date field falls back to the standard window in the client.
+      { apt, room, cat, pri, sub, who, due, desc: desc.trim(), photos },
       {
         onSuccess: (defect) => {
           onCreated?.(defect)
@@ -384,8 +386,15 @@ export function NewDefectDialog({
                 </Field>
 
                 <Field label="ვადა">
-                  {/* Fixed by policy — every defect gets the same window to be fixed. */}
-                  <div className={`${CONTROL} text-mut-3`}>{addDays(TODAY, DEFECT_DUE_DAYS)}</div>
+                  {/* Starts on the standard window and stays editable — some
+                      defects block a handover and cannot wait two weeks. */}
+                  <input
+                    type="date"
+                    className={`${CONTROL} cursor-pointer`}
+                    value={due}
+                    min={TODAY}
+                    onChange={(e) => setDue(e.target.value)}
+                  />
                 </Field>
 
                 <Field label="შეტყობინება">

@@ -1,51 +1,48 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Bell, CheckCircle2, ChevronLeft, CornerUpLeft, FileDown, Send, Wand2 } from 'lucide-react'
+import { Bell, CheckCircle2, ChevronLeft, CornerUpLeft, FileDown, ImageOff, Send, Wand2 } from 'lucide-react'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { useSetDefectStatus } from '@/api/mutations'
-import { defectPhotosQuery } from '@/api/queries'
+import { useAddDefectComment, useSetDefectStatus } from '@/api/mutations'
+import { defectCommentsQuery, defectPhotosQuery } from '@/api/queries'
 import type { Photo } from '@/api/client'
 import { useSession } from '@/lib/session'
 import { useToast } from '@/lib/toast'
 import { useBlobUrls } from '@/lib/blob-url'
 import { exportReport } from '@/lib/pdf'
-import { DEFECT_FLOW, PRI_LABEL, RECO, TODAY, nextDefectStatus, type Defect } from '@/data/domain'
-import { cn, formatStamp } from '@/lib/utils'
+import {
+  DEFECT_FLOW, PRI_LABEL, RECO, TODAY, nextDefectStatus,
+  type Defect, type DefectStatus,
+} from '@/data/domain'
+import { cn, formatStamp, initials } from '@/lib/utils'
 
-const ANNOTATION_TOOLS = [
-  ['circle', '○ წრე'],
-  ['arrow', '↗ ისარი'],
-  ['text', 'T ტექსტი'],
-  ['measure', '⟷ ზომა'],
-] as const
+const PHOTO_KIND: Record<Photo['kind'], string> = { before: 'BEFORE', after: 'AFTER' }
 
-/** Hatched placeholder standing in for a field photo. */
-const HATCH =
-  'bg-[repeating-linear-gradient(45deg,var(--color-hatch-a),var(--color-hatch-a)_7px,var(--color-hatch-b)_7px,var(--color-hatch-b)_14px)]'
-
-const TIMELINE = (d: Defect) => [
-  { t: 'შეიქმნა ველზე', d: `18 ივლ 09:14 · ${d.who}` },
-  { t: 'მიენიჭა შემსრულებელს', d: `18 ივლ 10:02 · ${d.sub} · Push+Email` },
-  { t: 'გამოსწორება / After ფოტო', d: '24 ივლ 15:41' },
-  { t: 'მიღება და დახურვა', d: 'QA ვიზუალური კონტროლი' },
+/** The four stages of the process strip, one per status in `DEFECT_FLOW`. */
+const TIMELINE_STEPS: { st: DefectStatus; t: string }[] = [
+  { st: 'ღია', t: 'შეიქმნა ველზე' },
+  { st: 'მიმდინარე', t: 'მიენიჭა შემსრულებელს' },
+  { st: 'შემოწმებაზე', t: 'გამოსწორება / After ფოტო' },
+  { st: 'დახურული', t: 'მიღება და დახურვა' },
 ]
 
-const COMMENTS = [
-  {
-    ini: 'გკ',
-    n: 'გ. კვარაცხელია',
-    time: '18 ივლ 09:20',
-    t: 'ფოტოზე მონიშნულია პრობლემური უბანი. საჭიროა სრული დემონტაჟი.',
-  },
-  {
-    ini: 'ლჩ',
-    n: 'ლ. ჩხეიძე',
-    time: '19 ივლ 11:05',
-    t: 'მასალა შეკვეთილია, სამუშაო დაიწყება ორშაბათს.',
-  },
-]
+/**
+ * The defect's own process strip. Every stamp comes from `history`, written
+ * when the status actually changed — a stage the defect has not reached yet
+ * reads as pending rather than borrowing a date from somewhere else.
+ */
+function timeline(d: Defect): { t: string; d: string }[] {
+  const reached = DEFECT_FLOW.indexOf(d.st)
+  // Reopening re-enters a status, so the *last* matching entry is the true one.
+  const entries = [...(d.history ?? [])].reverse()
+  return TIMELINE_STEPS.map((step, i) => {
+    const at = i <= reached ? entries.find((e) => e.st === step.st) : undefined
+    if (!at) return { t: step.t, d: 'მოლოდინში' }
+    // Handing the defect over is about the receiving contractor, not the sender.
+    return { t: step.t, d: `${formatStamp(at.at)} · ${step.st === 'მიმდინარე' ? d.sub : at.who}` }
+  })
+}
 
 /** Stable empty list — a fresh `[]` each render would re-run useBlobUrls forever. */
 const NO_PHOTOS: Photo[] = []
@@ -65,9 +62,24 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
   // comes back with the new status — no local status state to keep in sync.
   const setStatus = useSetDefectStatus()
   const { project } = useSession()
-  const [tool, setTool] = useState<string>('circle')
   const [comment, setComment] = useState('')
   const [activePhoto, setActivePhoto] = useState(0)
+
+  // Comments are hand-written only — nothing is seeded, so a defect nobody has
+  // discussed yet shows an empty thread rather than invented chatter.
+  const addComment = useAddDefectComment(defect?.id ?? '')
+  const { data: comments = [] } = useQuery({
+    ...defectCommentsQuery(project.id, defect?.id ?? ''),
+    enabled: !!defect,
+  })
+
+  // Oldest first, so the newest sits below the fold once the thread scrolls —
+  // open on it, and follow along as comments are posted.
+  const threadRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = threadRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [comments.length])
 
   // Photos filed with the defect. Seeded demo defects have none and keep the
   // designed placeholder; anything filed through the app shows its real shots.
@@ -85,6 +97,12 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
   const doneIdx = DEFECT_FLOW.indexOf(st)
   const next = nextDefectStatus(st)
   const canReopen = st === 'შემოწმებაზე' || st === 'დახურული'
+
+  // What the inspector filed. The form starts from the category's template, so
+  // an untouched measure is the automatic one — an edited one is their words.
+  const template = RECO[defect.cat] ?? RECO.Other!
+  const measure = defect.desc.trim() || template
+  const autoMeasure = measure === template
 
   const advance = () => {
     if (!next) return
@@ -118,9 +136,14 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
         { label: 'ობიექტი', value: `${project.name} — ${project.addr}` },
         { label: 'შემსრულებელი', value: defect.sub },
         { label: 'პასუხისმგებელი ინსპექტორი', value: defect.who },
-        { label: 'გამოსასწორებელი ღონისძიება', value: defect.desc || RECO[defect.cat] || RECO.Other! },
-        { label: 'პროცესი', value: TIMELINE(defect).map((s) => `• ${s.t} — ${s.d}`).join('\n') },
-        { label: 'კომენტარები', value: COMMENTS.map((c) => `${c.n} (${c.time}): ${c.t}`).join('\n') },
+        { label: 'გამოსასწორებელი ღონისძიება', value: measure },
+        { label: 'პროცესი', value: timeline(defect).map((s) => `• ${s.t} — ${s.d}`).join('\n') },
+        {
+          label: 'კომენტარები',
+          value: comments.length
+            ? comments.map((c) => `${c.who} (${formatStamp(c.at)}): ${c.text}`).join('\n')
+            : 'კომენტარი არ არის',
+        },
         {
           label: 'ფოტოები',
           value: photos.length
@@ -180,29 +203,9 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
         </DialogHeader>
 
         <DialogBody className="flex flex-wrap gap-4.5">
-          {/* Annotated photo column */}
+          {/* Photo column — only evidence actually filed with the defect. */}
           <div className="min-w-[min(320px,100%)] flex-[1.25]">
-            <div className="mb-2.5 flex flex-wrap gap-1.5">
-              {ANNOTATION_TOOLS.map(([id, label]) => (
-                <button
-                  key={id}
-                  onClick={() => setTool(id)}
-                  className={cn(
-                    'cursor-pointer rounded-[7px] border px-2.75 py-1.5 text-[11.5px] font-semibold',
-                    tool === id
-                      ? 'border-chip-a bg-chip-a text-chip-a-fg'
-                      : 'border-line-2 bg-card text-mut-3 hover:bg-soft',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-              <span className="ml-auto self-center text-[10.5px] text-mut-2">
-                ანოტაცია ინახება ფოტოს ზედა ფენად
-              </span>
-            </div>
-
-            <div className="relative aspect-[4/3] cursor-crosshair overflow-hidden rounded-xl bg-soft-3">
+            <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-soft-3">
               {active ? (
                 <>
                   {urls[active.id] && (
@@ -213,46 +216,30 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
                     />
                   )}
                   <span className="absolute left-2.5 top-2.5 rounded-full bg-ink px-2.25 py-0.75 text-[10px] font-bold text-card">
-                    BEFORE · {formatStamp(active.at)}
+                    {PHOTO_KIND[active.kind]} · {formatStamp(active.at)}
                   </span>
                   <span className="absolute bottom-2.5 right-2.5 rounded-[5px] bg-ink/80 px-1.75 py-0.5 font-mono text-[9px] text-card">
                     {active.source === 'camera' ? 'კამერა · ველზე გადაღებული' : 'ატვირთული ფაილი'}
                   </span>
                 </>
               ) : (
-                <>
-                  <span className="absolute left-2.5 top-2.5 rounded-full bg-ink px-2.25 py-0.75 text-[10px] font-bold text-card">
-                    BEFORE · 18 ივლ 09:16
-                  </span>
-                  <span className="absolute bottom-2.5 right-2.5 rounded-[5px] bg-ink/80 px-1.75 py-0.5 font-mono text-[9px] text-card">
-                    GPS 41.7093, 44.7395
-                  </span>
-                  <span className="absolute left-[24%] top-[30%] h-21 w-21 rounded-full border-[3px] border-brand shadow-[0_0_0_2px_rgba(255,77,0,0.25)]" />
-                  <svg
-                    className="absolute left-[46%] top-[24%]"
-                    width="110"
-                    height="70"
-                    viewBox="0 0 110 70"
-                    fill="none"
-                  >
-                    <path d="M105 8 L38 52" stroke="var(--color-brand)" strokeWidth="3" />
-                    <path
-                      d="M50 54 L38 52 L44 41"
-                      stroke="var(--color-brand)"
-                      strokeWidth="3"
-                      fill="none"
-                    />
-                  </svg>
-                  <span className="absolute left-[58%] top-[8%] rounded-lg bg-brand px-2.5 py-1 text-[11px] font-bold text-white">
-                    არასწორი წებო
-                  </span>
-                </>
+                <div className="grid h-full place-items-center px-6 text-center">
+                  <div>
+                    <ImageOff className="mx-auto h-6 w-6 text-mut-2" />
+                    <div className="mt-2 text-[12.5px] font-semibold text-mut-3">
+                      ფოტო არ არის მიბმული
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-mut-2">
+                      ხარვეზის რეგისტრაციისას ატვირთული ფოტოები აქ გამოჩნდება.
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
 
-            <div className="mt-2.5 flex gap-2">
-              {photos.length > 0 ? (
-                photos.map((p, i) => (
+            {photos.length > 1 && (
+              <div className="mt-2.5 flex gap-2">
+                {photos.map((p, i) => (
                   <button
                     key={p.id}
                     onClick={() => setActivePhoto(i)}
@@ -266,28 +253,12 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
                       <img src={urls[p.id]} alt={p.name} className="h-full w-full object-cover" />
                     )}
                     <span className="absolute bottom-1.25 left-1.5 rounded-full bg-ink px-1.5 py-px text-[8.5px] font-bold text-card">
-                      BEFORE
+                      {PHOTO_KIND[p.kind]}
                     </span>
                   </button>
-                ))
-              ) : (
-                <>
-                  <div className={cn('relative aspect-video flex-1 rounded-[9px] border-2 border-brand', HATCH)}>
-                    <span className="absolute bottom-1.25 left-1.5 rounded-full bg-ink px-1.5 py-px text-[8.5px] font-bold text-card">
-                      BEFORE
-                    </span>
-                  </div>
-                  <div className={cn('relative aspect-video flex-1 rounded-[9px] opacity-85', HATCH)}>
-                    <span className="absolute bottom-1.25 left-1.5 rounded-full bg-ok px-1.5 py-px text-[8.5px] font-bold text-white">
-                      AFTER
-                    </span>
-                  </div>
-                  <button className="grid aspect-video flex-1 cursor-pointer place-items-center rounded-[9px] border-[1.5px] border-dashed border-line-2 text-lg text-mut-2 hover:border-brand hover:text-brand">
-                    ＋
-                  </button>
-                </>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Detail column */}
@@ -301,19 +272,17 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
 
             <div className="mb-3.25 rounded-[11px] border border-note-line bg-note-bg px-3.5 py-3">
               <div className="mb-1.25 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.08em] text-note-label">
-                <Wand2 className="h-2.75 w-2.75 flex-none" />
-                გამოსასწორებელი ღონისძიება — ავტომატური
+                {autoMeasure && <Wand2 className="h-2.75 w-2.75 flex-none" />}
+                გამოსასწორებელი ღონისძიება{autoMeasure && ' — ავტომატური'}
               </div>
-              <div className="text-[12.5px] leading-[1.6] text-note-ink">
-                {RECO[defect.cat] ?? RECO.Other}
-              </div>
+              <div className="text-[12.5px] leading-[1.6] text-note-ink">{measure}</div>
             </div>
 
             <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-mut-2">
               პროცესი
             </div>
             <div className="flex flex-col">
-              {TIMELINE(defect).map((s, i) => (
+              {timeline(defect).map((s, i) => (
                 <div key={s.t} className="flex gap-2.75">
                   <div className="flex flex-col items-center">
                     <span
@@ -346,31 +315,49 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
             <div className="mb-2 mt-3.5 text-[10px] font-bold uppercase tracking-[0.1em] text-mut-2">
               კომენტარები
             </div>
-            {COMMENTS.map((c) => (
-              <div key={c.time} className="mb-2.25 flex gap-2.25">
-                <span className="grid h-6.5 w-6.5 flex-none place-items-center rounded-lg bg-soft-2 text-[10px] font-bold text-mut-3">
-                  {c.ini}
-                </span>
-                <div className="flex-1 rounded-[10px] bg-soft px-2.75 py-2">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-[11px] font-bold">{c.n}</span>
-                    <span className="text-[9.5px] text-mut-2">{c.time}</span>
-                  </div>
-                  <div className="mt-0.5 text-xs leading-[1.5]">{c.t}</div>
+            {/* The thread scrolls inside its own box — a long discussion must
+                not push the process strip and the composer out of the dialog. */}
+            <div ref={threadRef} className="mb-2.5 max-h-56 overflow-y-auto overscroll-contain">
+              {comments.length === 0 ? (
+                <div className="rounded-[10px] bg-soft px-2.75 py-2 text-[11.5px] text-mut-2">
+                  კომენტარი ჯერ არ არის — დაწერეთ პირველი.
                 </div>
-              </div>
-            ))}
+              ) : (
+                comments.map((c) => (
+                  <div key={c.id} className="mb-2.25 flex gap-2.25 last:mb-0">
+                    <span className="grid h-6.5 w-6.5 flex-none place-items-center rounded-lg bg-soft-2 text-[10px] font-bold text-mut-3">
+                      {initials(c.who)}
+                    </span>
+                    {/* min-w-0 lets the bubble shrink below its longest word;
+                        without it a flex item sizes to that word and drags the
+                        whole dialog sideways. break-words then wraps it. */}
+                    <div className="min-w-0 flex-1 rounded-[10px] bg-soft px-2.75 py-2">
+                      <div className="flex flex-wrap items-baseline gap-x-2">
+                        <span className="text-[11px] font-bold break-words">{c.who}</span>
+                        <span className="text-[9.5px] text-mut-2">{formatStamp(c.at)}</span>
+                      </div>
+                      <div className="mt-0.5 text-xs leading-[1.5] break-words">{c.text}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
 
             <form
               className="flex gap-2"
               onSubmit={(e) => {
                 e.preventDefault()
-                if (!comment.trim()) return
-                setComment('')
-                toast({
-                  kind: 'info',
-                  title: 'კომენტარი დაემატა',
-                  desc: 'მონაწილეებს გაეგზავნა შეტყობინება',
+                const text = comment.trim()
+                if (!text || addComment.isPending) return
+                addComment.mutate(text, {
+                  onSuccess: () => {
+                    setComment('')
+                    toast({
+                      kind: 'info',
+                      title: 'კომენტარი დაემატა',
+                      desc: 'მონაწილეებს გაეგზავნა შეტყობინება',
+                    })
+                  },
                 })
               }}
             >
@@ -383,7 +370,8 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
               <button
                 type="submit"
                 title="გაგზავნა"
-                className="grid h-9 w-9 flex-none cursor-pointer place-items-center rounded-[9px] bg-brand text-white shadow-[0_4px_12px_rgba(255,77,0,0.25)]"
+                disabled={addComment.isPending}
+                className="grid h-9 w-9 flex-none cursor-pointer place-items-center rounded-[9px] bg-brand text-white shadow-[0_4px_12px_rgba(255,77,0,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Send className="h-3.5 w-3.5" />
               </button>

@@ -35,6 +35,14 @@ export interface Apartment {
   rooms: number
 }
 
+/** One step of a defect's life: the moment it entered a status, and by whom. */
+export interface DefectEvent {
+  st: DefectStatus
+  /** ISO timestamp — formatted for display with `formatStamp`. */
+  at: string
+  who: string
+}
+
 export interface Defect {
   id: string
   cat: string
@@ -46,6 +54,12 @@ export interface Defect {
   sub: string
   due: string
   desc: string
+  /**
+   * Status transitions in the order they happened, starting with the filing.
+   * The dialog's process timeline reads its stamps from here, so each defect
+   * shows its own dates. Optional only for rows written before it existed.
+   */
+  history?: DefectEvent[]
 }
 
 export interface Task {
@@ -117,6 +131,16 @@ export interface UserRow {
 export interface TaskComment {
   id: string
   taskId: string
+  who: string
+  /** ISO local timestamp — formatted for display with `formatStamp`. */
+  at: string
+  text: string
+}
+
+export interface DefectComment {
+  id: string
+  /** `proj:defectId` — the defect this comment was written on. */
+  defect: string
   who: string
   /** ISO local timestamp — formatted for display with `formatStamp`. */
   at: string
