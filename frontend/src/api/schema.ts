@@ -8,10 +8,12 @@ import { openBackend, type Backend, type StoreSpec } from './idb'
 import { SEED_VERSION, seedRecords } from './seed'
 
 const DB_NAME = 'qc-platform'
-const DB_VERSION = 1
+// v2 added the `photos` store. Bumping the version runs `onupgradeneeded`, which
+// creates missing stores without touching the rows already there.
+const DB_VERSION = 2
 
 export type StoreName =
-  | 'apartments' | 'defects' | 'tasks' | 'taskComments' | 'standards'
+  | 'apartments' | 'defects' | 'photos' | 'tasks' | 'taskComments' | 'standards'
   | 'drawings' | 'ownerDocs' | 'archive' | 'contracts' | 'audit' | 'users'
   | 'meta'
 
@@ -29,6 +31,9 @@ const SPECS: StoreSpec<StoreName>[] = [
       { name: 'by-apartment', keyPath: ['proj', 'apt'] },
     ],
   },
+  // Field photos, keyed to the defect they document. Blobs live in their own
+  // store so listing defects never drags megabytes of image data along.
+  { name: 'photos', keyPath: 'id', indexes: [{ name: 'by-defect', keyPath: 'defect' }] },
   { name: 'tasks', keyPath: 'id' },
   { name: 'taskComments', keyPath: 'id', indexes: [{ name: 'by-task', keyPath: 'taskId' }] },
   { name: 'standards', keyPath: 'code' },

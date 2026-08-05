@@ -17,7 +17,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        'rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer',
+        'shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer',
         active
           ? 'border-chip-a bg-chip-a text-chip-a-fg'
           : 'border-line-2 bg-card text-mut-3 hover:bg-soft',

@@ -259,6 +259,15 @@ textarea:focus {
   to { width: 0; }
 }
 
+/* Chip strips scroll sideways on a phone; the bar itself would only add noise. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Shimmering placeholder used by <Skeleton> while a route's data loads. */
 .skeleton {
   background: linear-gradient(

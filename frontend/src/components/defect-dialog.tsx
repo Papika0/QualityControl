@@ -1,12 +1,18 @@
 import { useState } from 'react'
-import { Bell, ChevronLeft, CornerUpLeft, Send } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Bell, CheckCircle2, ChevronLeft, CornerUpLeft, FileDown, Send, Wand2 } from 'lucide-react'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useSetDefectStatus } from '@/api/mutations'
+import { defectPhotosQuery } from '@/api/queries'
+import type { Photo } from '@/api/client'
+import { useSession } from '@/lib/session'
 import { useToast } from '@/lib/toast'
-import { DEFECT_FLOW, PRI_LABEL, RECO, nextDefectStatus, type Defect } from '@/data/domain'
-import { cn } from '@/lib/utils'
+import { useBlobUrls } from '@/lib/blob-url'
+import { exportReport } from '@/lib/pdf'
+import { DEFECT_FLOW, PRI_LABEL, RECO, TODAY, nextDefectStatus, type Defect } from '@/data/domain'
+import { cn, formatStamp } from '@/lib/utils'
 
 const ANNOTATION_TOOLS = [
   ['circle', '○ წრე'],
@@ -41,6 +47,9 @@ const COMMENTS = [
   },
 ]
 
+/** Stable empty list — a fresh `[]` each render would re-run useBlobUrls forever. */
+const NO_PHOTOS: Photo[] = []
+
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[9px] bg-soft px-3 py-2.25">
@@ -55,8 +64,20 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
   // The write invalidates the defect queries, so the row this dialog renders
   // comes back with the new status — no local status state to keep in sync.
   const setStatus = useSetDefectStatus()
+  const { project } = useSession()
   const [tool, setTool] = useState<string>('circle')
   const [comment, setComment] = useState('')
+  const [activePhoto, setActivePhoto] = useState(0)
+
+  // Photos filed with the defect. Seeded demo defects have none and keep the
+  // designed placeholder; anything filed through the app shows its real shots.
+  const { data } = useQuery({
+    ...defectPhotosQuery(project.id, defect?.id ?? ''),
+    enabled: !!defect,
+  })
+  const photos = data ?? NO_PHOTOS
+  const urls = useBlobUrls(photos)
+  const active = photos[Math.min(activePhoto, photos.length - 1)]
 
   if (!defect) return null
 
@@ -78,6 +99,50 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
           }),
       },
     )
+  }
+
+  /** Single-defect report — the record sheet a PM forwards or files. */
+  const exportPdf = () => {
+    const late = defect.due < TODAY && defect.st !== 'დახურული'
+    const how = exportReport({
+      docTitle: `${defect.id}-ანგარიში`,
+      title: `${defect.cat} — ${defect.room}`,
+      subtitle: `${project.id} · ხარვეზის ანგარიში · ${defect.id}`,
+      meta: [
+        { label: 'სტატუსი', value: defect.st },
+        { label: 'პრიორიტეტი', value: PRI_LABEL[defect.pri] },
+        { label: 'ბინა', value: defect.apt },
+        { label: 'ვადა', value: late ? `${defect.due} — ვადაგადაცილებული` : defect.due },
+      ],
+      blocks: [
+        { label: 'ობიექტი', value: `${project.name} — ${project.addr}` },
+        { label: 'შემსრულებელი', value: defect.sub },
+        { label: 'პასუხისმგებელი ინსპექტორი', value: defect.who },
+        { label: 'გამოსასწორებელი ღონისძიება', value: defect.desc || RECO[defect.cat] || RECO.Other! },
+        { label: 'პროცესი', value: TIMELINE(defect).map((s) => `• ${s.t} — ${s.d}`).join('\n') },
+        { label: 'კომენტარები', value: COMMENTS.map((c) => `${c.n} (${c.time}): ${c.t}`).join('\n') },
+        {
+          label: 'ფოტოები',
+          value: photos.length
+            ? photos
+                .map(
+                  (p) =>
+                    `• ${p.name} — ${formatStamp(p.at)}${p.annotations?.length ? ` · ${p.annotations.length} ანოტაცია` : ''}`,
+                )
+                .join('\n')
+            : 'ფოტო არ არის მიბმული',
+        },
+      ],
+      note: `${project.name} · ხარისხის კონტროლის პლატფორმა`,
+    })
+    toast({
+      kind: 'ok',
+      title: `PDF ანგარიში — ${defect.id}`,
+      desc:
+        how === 'window'
+          ? 'ბეჭდვის ფანჯარაში აირჩიეთ „Save as PDF“'
+          : 'ბრაუზერმა ახალი ფანჯარა დაბლოკა — ბეჭდვა გაიხსნა აქვე',
+    })
   }
 
   const reopen = () =>
@@ -138,42 +203,90 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
             </div>
 
             <div className="relative aspect-[4/3] cursor-crosshair overflow-hidden rounded-xl bg-soft-3">
-              <span className="absolute left-2.5 top-2.5 rounded-full bg-ink px-2.25 py-0.75 text-[10px] font-bold text-card">
-                BEFORE · 18 ივლ 09:16
-              </span>
-              <span className="absolute bottom-2.5 right-2.5 rounded-[5px] bg-ink/80 px-1.75 py-0.5 font-mono text-[9px] text-card">
-                GPS 41.7093, 44.7395
-              </span>
-              <span className="absolute left-[24%] top-[30%] h-21 w-21 rounded-full border-[3px] border-brand shadow-[0_0_0_2px_rgba(255,77,0,0.25)]" />
-              <svg
-                className="absolute left-[46%] top-[24%]"
-                width="110"
-                height="70"
-                viewBox="0 0 110 70"
-                fill="none"
-              >
-                <path d="M105 8 L38 52" stroke="var(--color-brand)" strokeWidth="3" />
-                <path d="M50 54 L38 52 L44 41" stroke="var(--color-brand)" strokeWidth="3" fill="none" />
-              </svg>
-              <span className="absolute left-[58%] top-[8%] rounded-lg bg-brand px-2.5 py-1 text-[11px] font-bold text-white">
-                არასწორი წებო
-              </span>
+              {active ? (
+                <>
+                  {urls[active.id] && (
+                    <img
+                      src={urls[active.id]}
+                      alt={active.name}
+                      className="h-full w-full object-contain"
+                    />
+                  )}
+                  <span className="absolute left-2.5 top-2.5 rounded-full bg-ink px-2.25 py-0.75 text-[10px] font-bold text-card">
+                    BEFORE · {formatStamp(active.at)}
+                  </span>
+                  <span className="absolute bottom-2.5 right-2.5 rounded-[5px] bg-ink/80 px-1.75 py-0.5 font-mono text-[9px] text-card">
+                    {active.source === 'camera' ? 'კამერა · ველზე გადაღებული' : 'ატვირთული ფაილი'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="absolute left-2.5 top-2.5 rounded-full bg-ink px-2.25 py-0.75 text-[10px] font-bold text-card">
+                    BEFORE · 18 ივლ 09:16
+                  </span>
+                  <span className="absolute bottom-2.5 right-2.5 rounded-[5px] bg-ink/80 px-1.75 py-0.5 font-mono text-[9px] text-card">
+                    GPS 41.7093, 44.7395
+                  </span>
+                  <span className="absolute left-[24%] top-[30%] h-21 w-21 rounded-full border-[3px] border-brand shadow-[0_0_0_2px_rgba(255,77,0,0.25)]" />
+                  <svg
+                    className="absolute left-[46%] top-[24%]"
+                    width="110"
+                    height="70"
+                    viewBox="0 0 110 70"
+                    fill="none"
+                  >
+                    <path d="M105 8 L38 52" stroke="var(--color-brand)" strokeWidth="3" />
+                    <path
+                      d="M50 54 L38 52 L44 41"
+                      stroke="var(--color-brand)"
+                      strokeWidth="3"
+                      fill="none"
+                    />
+                  </svg>
+                  <span className="absolute left-[58%] top-[8%] rounded-lg bg-brand px-2.5 py-1 text-[11px] font-bold text-white">
+                    არასწორი წებო
+                  </span>
+                </>
+              )}
             </div>
 
             <div className="mt-2.5 flex gap-2">
-              <div className={cn('relative aspect-video flex-1 rounded-[9px] border-2 border-brand', HATCH)}>
-                <span className="absolute bottom-1.25 left-1.5 rounded-full bg-ink px-1.5 py-px text-[8.5px] font-bold text-card">
-                  BEFORE
-                </span>
-              </div>
-              <div className={cn('relative aspect-video flex-1 rounded-[9px] opacity-85', HATCH)}>
-                <span className="absolute bottom-1.25 left-1.5 rounded-full bg-ok px-1.5 py-px text-[8.5px] font-bold text-white">
-                  AFTER
-                </span>
-              </div>
-              <button className="grid aspect-video flex-1 cursor-pointer place-items-center rounded-[9px] border-[1.5px] border-dashed border-line-2 text-lg text-mut-2 hover:border-brand hover:text-brand">
-                ＋
-              </button>
+              {photos.length > 0 ? (
+                photos.map((p, i) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setActivePhoto(i)}
+                    title={p.name}
+                    className={cn(
+                      'relative aspect-video max-w-28 flex-1 cursor-pointer overflow-hidden rounded-[9px] bg-soft-3',
+                      i === activePhoto ? 'border-2 border-brand' : 'opacity-85 hover:opacity-100',
+                    )}
+                  >
+                    {urls[p.id] && (
+                      <img src={urls[p.id]} alt={p.name} className="h-full w-full object-cover" />
+                    )}
+                    <span className="absolute bottom-1.25 left-1.5 rounded-full bg-ink px-1.5 py-px text-[8.5px] font-bold text-card">
+                      BEFORE
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <>
+                  <div className={cn('relative aspect-video flex-1 rounded-[9px] border-2 border-brand', HATCH)}>
+                    <span className="absolute bottom-1.25 left-1.5 rounded-full bg-ink px-1.5 py-px text-[8.5px] font-bold text-card">
+                      BEFORE
+                    </span>
+                  </div>
+                  <div className={cn('relative aspect-video flex-1 rounded-[9px] opacity-85', HATCH)}>
+                    <span className="absolute bottom-1.25 left-1.5 rounded-full bg-ok px-1.5 py-px text-[8.5px] font-bold text-white">
+                      AFTER
+                    </span>
+                  </div>
+                  <button className="grid aspect-video flex-1 cursor-pointer place-items-center rounded-[9px] border-[1.5px] border-dashed border-line-2 text-lg text-mut-2 hover:border-brand hover:text-brand">
+                    ＋
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -187,8 +300,9 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
             </div>
 
             <div className="mb-3.25 rounded-[11px] border border-note-line bg-note-bg px-3.5 py-3">
-              <div className="mb-1.25 text-[10px] font-bold tracking-[0.08em] text-note-label">
-                ⚡ გამოსასწორებელი ღონისძიება (ავტო)
+              <div className="mb-1.25 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.08em] text-note-label">
+                <Wand2 className="h-2.75 w-2.75 flex-none" />
+                გამოსასწორებელი ღონისძიება — ავტომატური
               </div>
               <div className="text-[12.5px] leading-[1.6] text-note-ink">
                 {RECO[defect.cat] ?? RECO.Other}
@@ -284,7 +398,13 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
             onClick={advance}
             disabled={!next || setStatus.isPending}
           >
-            {next ? `სტატუსი → ${next}` : '✓ დახურულია'}
+            {next ? (
+              `სტატუსი → ${next}`
+            ) : (
+              <>
+                <CheckCircle2 className="h-3.5 w-3.5" /> დახურულია
+              </>
+            )}
           </Button>
           {canReopen && (
             <Button
@@ -296,17 +416,8 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
               <CornerUpLeft className="h-3.5 w-3.5" /> დაბრუნება გამოსასწორებლად
             </Button>
           )}
-          <Button
-            variant="outline"
-            onClick={() =>
-              toast({
-                kind: 'ok',
-                title: 'PDF ანგარიში მომზადდა',
-                desc: `${defect.id} · გაეგზავნა PM-ს და ტექ. დირექტორს`,
-              })
-            }
-          >
-            PDF ანგარიში
+          <Button variant="outline" onClick={exportPdf}>
+            <FileDown className="h-3.5 w-3.5" /> PDF ანგარიში
           </Button>
           <Button
             variant="outline"

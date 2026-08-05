@@ -26,6 +26,12 @@ export const aptDefectsQuery = (proj: ProjectId, no: string) =>
     queryFn: () => api.defects.forApartment(proj, no),
   })
 
+export const defectPhotosQuery = (proj: ProjectId, id: string) =>
+  queryOptions({
+    queryKey: ['defectPhotos', proj, id],
+    queryFn: () => api.defects.photos(proj, id),
+  })
+
 export const tasksQuery = () =>
   queryOptions({ queryKey: ['tasks'], queryFn: () => api.tasks.list() })
 

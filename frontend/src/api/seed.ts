@@ -10,6 +10,7 @@
 // and re-seeds when the stored version no longer matches.
 
 import { hash01 } from '@/lib/utils'
+import type { Annotation } from '@/lib/annotate'
 import {
   CATS, PEOPLE, PROJECTS, RECO, ROOMS, SUBS, TASK_TYPES, TODAY,
   type Apartment, type ArchiveRow, type AuditRow, type ContractRow, type Defect,
@@ -37,6 +38,39 @@ export type ContractDocRow = Ordered<ContractRow>
 export type AuditEntryRow = Ordered<AuditRow>
 export type UserAccountRow = Ordered<UserRow>
 export type TaskCommentRow = Ordered<TaskComment>
+
+/**
+ * A field photo. Never seeded — the demo dataset has no real imagery, so these
+ * rows only ever come from an inspector's camera or file picker.
+ */
+export interface PhotoRow {
+  id: string
+  /** `proj:defectId` — the defect this photo documents. */
+  defect: string
+  ord: number
+  kind: 'before' | 'after'
+  name: string
+  /** ISO timestamp of when the photo was attached. */
+  at: string
+  source: 'camera' | 'upload'
+  w: number
+  h: number
+  /**
+   * The encoded image, annotations already burned in.
+   *
+   * Bytes, not a Blob: WebKit's IndexedDB mishandles stored Blobs — the write
+   * transaction either fails outright or never settles, so on iOS a save hangs
+   * forever. An ArrayBuffer round-trips everywhere.
+   */
+  bytes: ArrayBuffer
+  /** MIME type, needed to rebuild the Blob on read. */
+  type: string
+  /** The marks that produced `bytes`, kept as data so a report can list them and
+   *  a later screen could re-render or re-edit them. */
+  annotations?: Annotation[]
+  /** Rows written before photos were stored as bytes. Read-only legacy. */
+  blob?: Blob
+}
 
 export const aptKey = (proj: ProjectId, no: string) => `${proj}:${no}`
 export const defectKey = (proj: ProjectId, id: string) => `${proj}:${id}`

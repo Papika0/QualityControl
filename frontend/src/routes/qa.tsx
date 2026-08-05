@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { CircleCheck, Lock, Plus } from 'lucide-react'
+import { CircleCheck, FileDown, Lock, Plus, ShieldCheck, X } from 'lucide-react'
 import { defectsQuery } from '@/api/queries'
-import { CATS, DEFECT_FLOW, PRI_DOT, TODAY, type Defect, type DefectStatus, type Priority } from '@/data/domain'
+import { CATS, DEFECT_FLOW, PRI_DOT, PRI_LABEL, TODAY, type Defect, type DefectStatus, type Priority } from '@/data/domain'
 import { useSession } from '@/lib/session'
 import { useToast } from '@/lib/toast'
+import { exportReport } from '@/lib/pdf'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/page-header'
 import { Chip } from '@/components/ui/chip'
@@ -126,6 +127,63 @@ function QaPage() {
 
   const noFilter = !search.st && !search.pri && !search.overdue && !search.cat
 
+  /** Human-readable list of what the current view is narrowed to. */
+  const activeFilters = [
+    search.st && `სტატუსი: ${search.st}`,
+    search.pri && `პრიორიტეტი: ${PRI_LABEL[search.pri]}`,
+    search.cat && `კატეგორია: ${search.cat}`,
+    search.overdue && 'მხოლოდ ვადაგადაცილებული',
+  ].filter(Boolean) as string[]
+
+  const clearFilters = () => {
+    navigate({ search: {}, replace: true })
+    if (!noFilter) toast({ kind: 'info', title: 'ფილტრი გასუფთავდა', desc: 'ნაჩვენებია ყველა ჩანაწერი' })
+  }
+
+  const exportPdf = () => {
+    const overdue = rows.filter((d) => d.due < TODAY && d.st !== 'დახურული').length
+    const how = exportReport<Defect>({
+      docTitle: `QA-ჟურნალი-${project.id}`,
+      title: 'ხარვეზების ჟურნალი',
+      subtitle: `${project.id} · QA/QC`,
+      landscape: true,
+      meta: [
+        { label: 'პროექტი', value: `${project.name} — ${project.addr}` },
+        { label: 'ჩანაწერი', value: String(rows.length) },
+        { label: 'ვადაგადაცილებული', value: String(overdue) },
+        { label: 'ფილტრი', value: activeFilters.length ? activeFilters.join(' · ') : 'ყველა ჩანაწერი' },
+        { label: 'დალაგება', value: SORT_LABEL[sort] },
+      ],
+      columns: [
+        { header: 'ID', width: '9%', mono: true, cell: (d) => d.id },
+        { header: 'კატეგორია', width: '9%', cell: (d) => d.cat },
+        { header: 'ბინა', width: '5%', cell: (d) => d.apt },
+        { header: 'ოთახი', width: '10%', cell: (d) => d.room },
+        { header: 'პრიორიტეტი', width: '7%', cell: (d) => PRI_LABEL[d.pri] },
+        { header: 'სტატუსი', width: '8%', cell: (d) => d.st },
+        { header: 'შემსრულებელი', width: '12%', cell: (d) => d.sub },
+        { header: 'პასუხისმგებელი', width: '10%', cell: (d) => d.who },
+        {
+          header: 'ვადა',
+          width: '8%',
+          mono: true,
+          cell: (d) => (d.due < TODAY && d.st !== 'დახურული' ? `${d.due} (!)` : d.due),
+        },
+        { header: 'გამოსასწორებელი ღონისძიება', width: '22%', cell: (d) => d.desc },
+      ],
+      rows,
+      note: `${project.name} · ხარისხის კონტროლის პლატფორმა`,
+    })
+    toast({
+      kind: 'ok',
+      title: `PDF მომზადდა — ${rows.length} ჩანაწერი`,
+      desc:
+        how === 'window'
+          ? 'ბეჭდვის ფანჯარაში აირჩიეთ „Save as PDF“'
+          : 'ბრაუზერმა ახალი ფანჯარა დაბლოკა — ბეჭდვა გაიხსნა აქვე',
+    })
+  }
+
   return (
     <div className="flex h-full flex-col">
       <PageHeader
@@ -133,29 +191,28 @@ function QaPage() {
         title="ხარვეზების ჟურნალი"
         actions={
           <>
-            <Button
-              variant="outline"
-              onClick={() =>
-                toast({
-                  kind: 'ok',
-                  title: 'PDF ექსპორტი მომზადდა',
-                  desc: `${rows.length} ჩანაწერი · ${project.name}`,
-                })
-              }
-            >
-              PDF ექსპორტი
+            <Button variant="outline" onClick={exportPdf} title="ხარვეზების ჟურნალი PDF-ად">
+              <FileDown className="h-4 w-4 flex-none" />
+              {/* The label sheds its second word on a phone rather than
+                  pushing the header row into an overflow. */}
+              <span className="truncate">
+                PDF<span className="hidden sm:inline"> ექსპორტი</span>
+              </span>
             </Button>
             <Button onClick={() => setCreating(true)}>
-              <Plus className="h-4 w-4" /> ხარვეზი
+              <Plus className="h-4 w-4 flex-none" /> <span className="truncate">ხარვეზი</span>
             </Button>
           </>
         }
       />
 
       {isSub && (
-        <div className="mb-3.5 rounded-[10px] border border-note-line bg-note-bg px-4 py-2.75 text-[12.5px] text-note-label">
-          🔒 Record-level წვდომა — ხედავთ მხოლოდ თქვენს კომპანიაზე („შპს ალიანს-მშენი") მიბმულ
-          ჩანაწერებს. ფინანსური ველები დამალულია.
+        <div className="mb-3.5 flex items-start gap-2.5 rounded-[10px] border border-note-line bg-note-bg px-4 py-2.75 text-[12.5px] text-note-label">
+          <ShieldCheck className="mt-0.5 h-3.75 w-3.75 flex-none" />
+          <span>
+            Record-level წვდომა — ხედავთ მხოლოდ თქვენს კომპანიაზე („შპს ალიანს-მშენი") მიბმულ
+            ჩანაწერებს. ფინანსური ველები დამალულია.
+          </span>
         </div>
       )}
 
@@ -179,43 +236,48 @@ function QaPage() {
         </div>
       )}
 
-      <div className="mb-3.5 flex flex-wrap items-center gap-1.75">
-        <Chip active={noFilter} onClick={() => navigate({ search: {}, replace: true })}>
-          ყველა
-        </Chip>
-        {STATUSES.map((s) => (
+      {/* Below `sm` the chips ride one edge-to-edge scroll strip — stacking them
+          left-aligned over three ragged rows was the mobile eyesore. `sm:contents`
+          dissolves the strip on wider screens so they wrap as before. */}
+      <div className="mb-3.5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-1.75">
+        <div className="no-scrollbar -mx-[clamp(14px,2.6vw,26px)] flex gap-1.75 overflow-x-auto px-[clamp(14px,2.6vw,26px)] sm:contents">
+          <Chip active={noFilter} onClick={clearFilters}>
+            ყველა
+          </Chip>
+          {STATUSES.map((s) => (
+            <Chip
+              key={s}
+              active={search.st === s}
+              onClick={() => setFilter({ st: search.st === s ? undefined : s, overdue: undefined, pri: undefined })}
+            >
+              {s}
+            </Chip>
+          ))}
           <Chip
-            key={s}
-            active={search.st === s}
-            onClick={() => setFilter({ st: search.st === s ? undefined : s, overdue: undefined, pri: undefined })}
+            active={search.pri === 'high'}
+            onClick={() => setFilter({ pri: search.pri === 'high' ? undefined : 'high' })}
           >
-            {s}
+            მაღალი
           </Chip>
-        ))}
-        <Chip
-          active={search.pri === 'high'}
-          onClick={() => setFilter({ pri: search.pri === 'high' ? undefined : 'high' })}
-        >
-          მაღალი
-        </Chip>
-        <Chip
-          active={!!search.overdue}
-          onClick={() => setFilter({ overdue: search.overdue ? undefined : true })}
-        >
-          ვადაგადაცილებული
-        </Chip>
-        {search.cat && (
-          <Chip active onClick={() => setFilter({ cat: undefined })}>
-            კატეგორია: {search.cat} ✕
+          <Chip
+            active={!!search.overdue}
+            onClick={() => setFilter({ overdue: search.overdue ? undefined : true })}
+          >
+            ვადაგადაცილებული
           </Chip>
-        )}
+          {search.cat && (
+            <Chip active onClick={() => setFilter({ cat: undefined })} className="inline-flex items-center gap-1.5">
+              კატეგორია: {search.cat} <X className="h-3 w-3" />
+            </Chip>
+          )}
+        </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 sm:ml-auto sm:justify-end">
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
             aria-label="დალაგება"
-            className="cursor-pointer rounded-full border border-line-2 bg-card px-3 py-1.5 text-xs font-semibold text-mut-3"
+            className="min-w-0 cursor-pointer rounded-full border border-line-2 bg-card px-3 py-1.5 text-xs font-semibold text-mut-3"
           >
             {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
               <option key={k} value={k}>
@@ -223,7 +285,7 @@ function QaPage() {
               </option>
             ))}
           </select>
-          <span className="text-xs text-mut-2">ნაპოვნია: {rows.length}</span>
+          <span className="whitespace-nowrap text-xs text-mut-2">ნაპოვნია: {rows.length}</span>
         </div>
       </div>
 
@@ -234,7 +296,7 @@ function QaPage() {
           <div className="mt-1 text-xs text-mut-2">ყველა შესაბამისი ხარვეზი დახურულია</div>
           <button
             className="mt-3.5 cursor-pointer rounded-full border border-line-2 bg-card px-4 py-2 text-xs font-semibold hover:border-brand hover:text-brand-dark"
-            onClick={() => navigate({ search: {}, replace: true })}
+            onClick={clearFilters}
           >
             ფილტრის გასუფთავება
           </button>
@@ -289,9 +351,18 @@ function QaPage() {
         <NewDefectDialog
           onClose={() => setCreating(false)}
           onCreated={(d) => {
-            // Drop any filter that would hide the row, then reveal it.
+            // Drop any filter that would hide the row, then reveal it. Silently
+            // resetting the view is confusing, so say so when it happens.
+            const hidden = !noFilter
             navigate({ search: {}, replace: true })
             setFlashId(d.id)
+            if (hidden) {
+              toast({
+                kind: 'info',
+                title: 'ფილტრი გასუფთავდა',
+                desc: `${d.id} ფილტრს მიღმა იყო — სიაში მონიშნულია`,
+              })
+            }
           }}
         />
       )}

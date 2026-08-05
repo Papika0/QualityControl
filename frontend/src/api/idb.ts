@@ -40,11 +40,26 @@ function request<T>(r: IDBRequest<T>): Promise<T> {
   })
 }
 
+/**
+ * Ceiling on a write. WebKit can leave a transaction that never fires
+ * `complete`, `error` or `abort` — the caller's promise would then hang for the
+ * life of the tab, which reads to the user as a button that saves forever.
+ */
+const TX_TIMEOUT_MS = 20_000
+
 function settled(tx: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'))
-    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'))
+    const timer = setTimeout(
+      () => reject(new Error('IndexedDB transaction timed out')),
+      TX_TIMEOUT_MS,
+    )
+    const finish = (done: () => void) => {
+      clearTimeout(timer)
+      done()
+    }
+    tx.oncomplete = () => finish(resolve)
+    tx.onerror = () => finish(() => reject(tx.error ?? new Error('IndexedDB transaction failed')))
+    tx.onabort = () => finish(() => reject(tx.error ?? new Error('IndexedDB transaction aborted')))
   })
 }
 
