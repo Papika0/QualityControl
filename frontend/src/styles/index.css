@@ -1,0 +1,58 @@
+@import "tailwindcss";
+/* Frappe Gantt base styles (resolved via the package's "style" export condition) */
+@import "frappe-gantt";
+
+@theme {
+  --font-sans: "Inter", "Noto Sans Georgian", system-ui, -apple-system, sans-serif;
+
+  --color-brand: #ff4d00;
+  --color-brand-dark: #b33a00;
+  --color-brand-soft: #ffede3;
+  --color-brand-ring: #ffd9c7;
+
+  --color-ink: #16191d;
+  --color-mut: #6b757c;
+  --color-mut-2: #8a949b;
+  --color-mut-3: #5a646b;
+
+  --color-page: #f4f4f1;
+  --color-card: #ffffff;
+  --color-soft: #f1f2ee;
+  --color-soft-2: #eef0ec;
+  --color-line: #e4e6e0;
+  --color-line-2: #d8dbd3;
+
+  --color-ok: #0e7d52;
+  --color-ok-soft: #dff0e7;
+  --color-danger: #c0361f;
+  --color-danger-2: #c2410c;
+  --color-danger-soft: #fbe5e1;
+  --color-warn: #92670a;
+  --color-warn-soft: #f6edd6;
+  --color-info: #2447c6;
+  --color-info-soft: #e5ebfc;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-page text-ink font-sans antialiased;
+}
+
+/* Frappe Gantt overrides to match the design system */
+.gantt-container {
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  background: var(--color-card);
+}
+.gantt .bar-progress {
+  fill: var(--color-brand);
+}
+.gantt .bar {
+  fill: var(--color-soft-2);
+}
+.gantt .bar-label {
+  font-weight: 600;
+}

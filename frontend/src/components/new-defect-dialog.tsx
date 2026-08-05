@@ -1,0 +1,133 @@
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Camera } from 'lucide-react'
+import { apartmentsQuery } from '@/api/queries'
+import { CATS, PEOPLE, RECO, SUBS } from '@/data/domain'
+import { useSession } from '@/lib/session'
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+export function NewDefectDialog({ onClose }: { onClose: () => void }) {
+  const { project } = useSession()
+  const { data: apts } = useQuery(apartmentsQuery(project.id))
+  const [cat, setCat] = useState<string>('Tiles')
+  const [floor, setFloor] = useState('12')
+  const [apt, setApt] = useState('1204')
+  const [reco, setReco] = useState<string | null>(null)
+
+  const floors = useMemo(
+    () => [...new Set((apts ?? []).map((a) => a.floor))].sort((a, b) => b - a),
+    [apts],
+  )
+  const aptsOnFloor = useMemo(
+    () => (apts ?? []).filter((a) => a.floor === Number(floor)),
+    [apts, floor],
+  )
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>ახალი ხარვეზი — QA-{apt}-021 (დრაფტი)</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-mut-3">სართული</label>
+              <Select
+                value={floor}
+                onValueChange={(f) => {
+                  setFloor(f)
+                  const first = (apts ?? []).find((a) => a.floor === Number(f))
+                  if (first) setApt(first.no)
+                }}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {floors.map((f) => (
+                    <SelectItem key={f} value={String(f)}>{f}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-mut-3">ბინა</label>
+              <Select value={apt} onValueChange={setApt}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {aptsOnFloor.map((a) => (
+                    <SelectItem key={a.no} value={a.no}>{a.no}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-mut-3">კატეგორია</label>
+              <Select
+                value={cat}
+                onValueChange={(c) => {
+                  setCat(c)
+                  setReco(null)
+                }}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CATS.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold text-mut-3">
+              რეკომენდაცია — ჩაისვა ავტომატურად კატეგორიის მიხედვით
+            </label>
+            <textarea
+              className="min-h-24 w-full rounded-lg border border-line-2 bg-card p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ring"
+              value={reco ?? RECO[cat] ?? RECO.Other}
+              onChange={(e) => setReco(e.target.value)}
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-mut-3">შემსრულებელი (ქვეკონტრაქტორი)</label>
+              <Select defaultValue={SUBS[0]}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SUBS.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-mut-3">პასუხისმგებელი QA</label>
+              <Select defaultValue={PEOPLE[1]}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PEOPLE.map((p) => (
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-line-2 bg-soft p-6 text-sm font-semibold text-mut-3 hover:bg-soft-2">
+            <Camera className="h-4 w-4" />
+            ფოტოს დამატება — GPS და დროის შტამპი ჩაიწერება ავტომატურად
+            <input type="file" accept="image/*" multiple className="hidden" />
+          </label>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>გაუქმება</Button>
+          <Button onClick={onClose}>დაფიქსირება — Push + Email გაეგზავნება</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

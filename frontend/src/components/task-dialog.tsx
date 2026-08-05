@@ -1,0 +1,154 @@
+import { useState } from 'react'
+import { BellRing, Check } from 'lucide-react'
+import { PRI_LABEL, type Task, type TaskColumn } from '@/data/domain'
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { cn, hash01, initials } from '@/lib/utils'
+
+const COL_LABEL: Record<TaskColumn, string> = {
+  new: 'ახალი', prog: 'მიმდინარე', check: 'შემოწმებაზე', done: 'დასრულებული',
+}
+const COL_COLOR: Record<TaskColumn, [string, string]> = {
+  new: ['#FFE7DB', '#C2410C'], prog: ['#E5EBFC', '#2447C6'],
+  check: ['#F6EDD6', '#92670A'], done: ['#DFF0E7', '#0E7D52'],
+}
+const NEXT: Partial<Record<TaskColumn, TaskColumn>> = { new: 'prog', prog: 'check', check: 'done' }
+
+const CHECKLIST = [
+  'ვიზუალური დათვალიერება',
+  'გაზომვა და ნორმასთან შედარება',
+  'ფოტოფიქსაცია (Before)',
+  'ხარვეზების რეგისტრაცია',
+  'აქტის მომზადება',
+  'ხელახალი შემოწმება',
+]
+
+export function TaskDialog({
+  task,
+  onClose,
+  onAdvance,
+}: {
+  task: Task
+  onClose: () => void
+  onAdvance: (id: string, next: TaskColumn) => void
+}) {
+  const [comments, setComments] = useState([
+    { w: task.who, t: 'გუშინ 16:40', d: 'მივიღე დავალება — დილიდან ვიწყებ.' },
+    { w: 'ნ. ბერიძე', t: 'დღეს 09:05', d: 'გთხოვთ, ფოტოფიქსაცია თითო ბინაზე ცალ-ცალკე.' },
+  ])
+  const [draft, setDraft] = useState('')
+
+  const k = task.col
+  const total = 3 + Math.floor(hash01(task.id) * 3)
+  const done = k === 'done' ? total : k === 'check' ? total - 1 : k === 'prog' ? Math.ceil(total / 2) : 0
+  const next = NEXT[k]
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <div className="flex items-center gap-2 pr-8">
+            <DialogTitle>{task.id}</DialogTitle>
+            <Badge style={{ backgroundColor: COL_COLOR[k][0], color: COL_COLOR[k][1] }}>{COL_LABEL[k]}</Badge>
+            <Badge className="bg-soft-2 text-mut-3">{PRI_LABEL[task.pri]}</Badge>
+          </div>
+          <p className="text-xs text-mut">{task.title}</p>
+        </DialogHeader>
+        <DialogBody className="space-y-5">
+          <p className="text-sm text-mut-3">
+            შეასრულეთ „{task.type}" — {task.loc}. თითოეული პუნქტი მონიშნეთ checklist-ში, შედეგები დააფიქსირეთ
+            ფოტოთი (GPS და დრო ჩაიწერება ავტომატურად). დასრულების შემდეგ სტატუსი გადადის „შემოწმებაზე".
+          </p>
+
+          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+            {[
+              ['ლოკაცია', task.loc],
+              ['ვადა', task.due],
+              ['შემსრულებელი', task.who],
+              ['ტიპი', task.type],
+            ].map(([label, v]) => (
+              <div key={label}>
+                <div className="text-[10px] font-bold uppercase text-mut-2">{label}</div>
+                <div className="mt-0.5 font-semibold">{v}</div>
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-mut-2">Checklist</div>
+              <div className="text-xs font-bold text-mut-3">{done} / {total}</div>
+            </div>
+            <div className="space-y-1">
+              {CHECKLIST.slice(0, total).map((item, i) => (
+                <div key={item} className="flex items-center gap-2.5 text-sm">
+                  <span
+                    className={cn(
+                      'flex h-4.5 w-4.5 items-center justify-center rounded border',
+                      i < done ? 'border-ok bg-ok text-white' : 'border-line-2 bg-card',
+                    )}
+                  >
+                    {i < done && <Check className="h-3 w-3" />}
+                  </span>
+                  <span className={cn(i < done && 'text-mut-2 line-through')}>{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-mut-2">კომენტარები</div>
+            <div className="space-y-2.5">
+              {comments.map((c, i) => (
+                <div key={i} className="flex gap-2.5">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-soft-2 text-[10px] font-bold text-mut-3">
+                    {initials(c.w)}
+                  </div>
+                  <div>
+                    <div className="text-xs">
+                      <b>{c.w}</b> <span className="text-mut-2">· {c.t}</span>
+                    </div>
+                    <div className="text-sm">{c.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Input
+                placeholder="კომენტარი…"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && draft.trim()) {
+                    setComments((c) => [...c, { w: 'ნ. ბერიძე (თქვენ)', t: 'ახლა', d: draft.trim() }])
+                    setDraft('')
+                  }
+                }}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (!draft.trim()) return
+                  setComments((c) => [...c, { w: 'ნ. ბერიძე (თქვენ)', t: 'ახლა', d: draft.trim() }])
+                  setDraft('')
+                }}
+              >
+                გაგზავნა
+              </Button>
+            </div>
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline">
+            <BellRing className="h-4 w-4" /> შეხსენება
+          </Button>
+          <Button disabled={!next} onClick={() => next && onAdvance(task.id, next)}>
+            {next ? `სტატუსი → ${COL_LABEL[next]}` : '✓ დასრულებულია'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
