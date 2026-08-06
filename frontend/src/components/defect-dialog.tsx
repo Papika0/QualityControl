@@ -12,7 +12,7 @@ import { useToast } from '@/lib/toast'
 import { useBlobUrls } from '@/lib/blob-url'
 import { exportReport } from '@/lib/pdf'
 import {
-  DEFECT_FLOW, PRI_LABEL, RECO, TODAY, nextDefectStatus,
+  DEFECT_FLOW, PRI_LABEL, TODAY, nextDefectStatus, recoFor,
   type Defect, type DefectStatus,
 } from '@/data/domain'
 import { cn, formatStamp, initials } from '@/lib/utils'
@@ -47,9 +47,9 @@ function timeline(d: Defect): { t: string; d: string }[] {
 /** Stable empty list — a fresh `[]` each render would re-run useBlobUrls forever. */
 const NO_PHOTOS: Photo[] = []
 
-function InfoTile({ label, value }: { label: string; value: string }) {
+function InfoTile({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
-    <div className="rounded-[9px] bg-soft px-3 py-2.25">
+    <div className={cn('rounded-[9px] bg-soft px-3 py-2.25', className)}>
       <div className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-mut-2">{label}</div>
       <div className="mt-0.5 text-[13px] font-bold">{value}</div>
     </div>
@@ -100,7 +100,7 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
 
   // What the inspector filed. The form starts from the category's template, so
   // an untouched measure is the automatic one — an edited one is their words.
-  const template = RECO[defect.cat] ?? RECO.Other!
+  const template = recoFor(defect.cat)
   const measure = defect.desc.trim() || template
   const autoMeasure = measure === template
 
@@ -133,6 +133,7 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
         { label: 'ვადა', value: late ? `${defect.due} — ვადაგადაცილებული` : defect.due },
       ],
       blocks: [
+        ...(defect.group ? [{ label: 'ჯგუფი', value: defect.group }] : []),
         { label: 'ობიექტი', value: `${project.name} — ${project.addr}` },
         { label: 'შემსრულებელი', value: defect.sub },
         { label: 'პასუხისმგებელი ინსპექტორი', value: defect.who },
@@ -264,6 +265,11 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
           {/* Detail column */}
           <div className="min-w-[min(280px,100%)] flex-1">
             <div className="mb-3.25 grid grid-cols-2 gap-2.25">
+              {/* The header carries the category; the ჯგუფი is the work item it
+                  was actually filed against, and only some categories have one. */}
+              {defect.group && (
+                <InfoTile label="ჯგუფი" value={defect.group} className="col-span-2" />
+              )}
               <InfoTile label="ბინა" value={defect.apt} />
               <InfoTile label="ვადა" value={defect.due} />
               <InfoTile label="ინსპექტორი" value={defect.who} />

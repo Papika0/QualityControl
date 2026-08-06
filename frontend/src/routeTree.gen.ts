@@ -19,9 +19,10 @@ import { Route as MapRouteImport } from './routes/map'
 import { Route as MobileRouteImport } from './routes/mobile'
 import { Route as QaRouteImport } from './routes/qa'
 import { Route as ScheduleRouteImport } from './routes/schedule'
-import { Route as StandardsRouteImport } from './routes/standards'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as ApartmentsAptNoRouteImport } from './routes/apartments.$aptNo'
+import { Route as StandardsIndexRouteImport } from './routes/standards.index'
+import { Route as StandardsCodeRouteImport } from './routes/standards.$code'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -73,11 +74,6 @@ const ScheduleRoute = ScheduleRouteImport.update({
   path: '/schedule',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StandardsRoute = StandardsRouteImport.update({
-  id: '/standards',
-  path: '/standards',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
@@ -86,6 +82,16 @@ const TasksRoute = TasksRouteImport.update({
 const ApartmentsAptNoRoute = ApartmentsAptNoRouteImport.update({
   id: '/apartments/$aptNo',
   path: '/apartments/$aptNo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StandardsIndexRoute = StandardsIndexRouteImport.update({
+  id: '/standards/',
+  path: '/standards/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StandardsCodeRoute = StandardsCodeRouteImport.update({
+  id: '/standards/$code',
+  path: '/standards/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -100,9 +106,10 @@ export interface FileRoutesByFullPath {
   '/mobile': typeof MobileRoute
   '/qa': typeof QaRoute
   '/schedule': typeof ScheduleRoute
-  '/standards': typeof StandardsRoute
   '/tasks': typeof TasksRoute
   '/apartments/$aptNo': typeof ApartmentsAptNoRoute
+  '/standards/$code': typeof StandardsCodeRoute
+  '/standards/': typeof StandardsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -115,9 +122,10 @@ export interface FileRoutesByTo {
   '/mobile': typeof MobileRoute
   '/qa': typeof QaRoute
   '/schedule': typeof ScheduleRoute
-  '/standards': typeof StandardsRoute
   '/tasks': typeof TasksRoute
   '/apartments/$aptNo': typeof ApartmentsAptNoRoute
+  '/standards/$code': typeof StandardsCodeRoute
+  '/standards': typeof StandardsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -131,9 +139,10 @@ export interface FileRoutesById {
   '/mobile': typeof MobileRoute
   '/qa': typeof QaRoute
   '/schedule': typeof ScheduleRoute
-  '/standards': typeof StandardsRoute
   '/tasks': typeof TasksRoute
   '/apartments/$aptNo': typeof ApartmentsAptNoRoute
+  '/standards/$code': typeof StandardsCodeRoute
+  '/standards/': typeof StandardsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -148,9 +157,10 @@ export interface FileRouteTypes {
     | '/mobile'
     | '/qa'
     | '/schedule'
-    | '/standards'
     | '/tasks'
     | '/apartments/$aptNo'
+    | '/standards/$code'
+    | '/standards/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -163,9 +173,10 @@ export interface FileRouteTypes {
     | '/mobile'
     | '/qa'
     | '/schedule'
-    | '/standards'
     | '/tasks'
     | '/apartments/$aptNo'
+    | '/standards/$code'
+    | '/standards'
   id:
     | '__root__'
     | '/'
@@ -178,9 +189,10 @@ export interface FileRouteTypes {
     | '/mobile'
     | '/qa'
     | '/schedule'
-    | '/standards'
     | '/tasks'
     | '/apartments/$aptNo'
+    | '/standards/$code'
+    | '/standards/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -194,9 +206,10 @@ export interface RootRouteChildren {
   MobileRoute: typeof MobileRoute
   QaRoute: typeof QaRoute
   ScheduleRoute: typeof ScheduleRoute
-  StandardsRoute: typeof StandardsRoute
   TasksRoute: typeof TasksRoute
   ApartmentsAptNoRoute: typeof ApartmentsAptNoRoute
+  StandardsCodeRoute: typeof StandardsCodeRoute
+  StandardsIndexRoute: typeof StandardsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -271,13 +284,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ScheduleRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/standards': {
-      id: '/standards'
-      path: '/standards'
-      fullPath: '/standards'
-      preLoaderRoute: typeof StandardsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/tasks': {
       id: '/tasks'
       path: '/tasks'
@@ -290,6 +296,20 @@ declare module '@tanstack/react-router' {
       path: '/apartments/$aptNo'
       fullPath: '/apartments/$aptNo'
       preLoaderRoute: typeof ApartmentsAptNoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/standards/': {
+      id: '/standards/'
+      path: '/standards'
+      fullPath: '/standards/'
+      preLoaderRoute: typeof StandardsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/standards/$code': {
+      id: '/standards/$code'
+      path: '/standards/$code'
+      fullPath: '/standards/$code'
+      preLoaderRoute: typeof StandardsCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -306,9 +326,10 @@ const rootRouteChildren: RootRouteChildren = {
   MobileRoute: MobileRoute,
   QaRoute: QaRoute,
   ScheduleRoute: ScheduleRoute,
-  StandardsRoute: StandardsRoute,
   TasksRoute: TasksRoute,
   ApartmentsAptNoRoute: ApartmentsAptNoRoute,
+  StandardsCodeRoute: StandardsCodeRoute,
+  StandardsIndexRoute: StandardsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

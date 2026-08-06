@@ -38,6 +38,12 @@ export const defectCommentsQuery = (proj: ProjectId, id: string) =>
     queryFn: () => api.defects.comments(proj, id),
   })
 
+export const aptStagesQuery = (proj: ProjectId, no: string) =>
+  queryOptions({
+    queryKey: ['stages', proj, no],
+    queryFn: () => api.stages.forApartment(proj, no),
+  })
+
 export const tasksQuery = () =>
   queryOptions({ queryKey: ['tasks'], queryFn: () => api.tasks.list() })
 

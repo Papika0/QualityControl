@@ -8,20 +8,22 @@
 // entry — in a single transaction.
 
 import {
-  TODAY,
+  STAGE_CATS, TODAY, nextStageStatus, progressFromStages,
   type Apartment, type ArchiveRow, type ContractRow, type Defect, type DefectComment,
-  type DefectStatus, type DocRow, type Priority, type ProjectId, type Standard,
-  type Task, type TaskColumn, type TaskComment, type UserRow,
+  type DefectStatus, type DocRow, type Priority, type ProjectId, type Stage,
+  type StageName, type Standard, type Task, type TaskColumn, type TaskComment,
+  type UserRow,
 } from '@/data/domain'
 import type { Annotation } from '@/lib/annotate'
 import { blobBytes } from '@/lib/image'
 import type { Backend, WriteOp } from './idb'
 import { db, resetDatabase, type StoreName } from './schema'
 import {
-  aptKey, defectKey,
+  aptKey, defectKey, stageKey,
   type AptRow, type ArchiveDocRow, type AuditEntryRow, type ContractDocRow,
   type DefectCommentRow, type DefectRow, type DocumentRow, type PhotoRow,
-  type StandardRow, type TaskCommentRow, type TaskRow, type UserAccountRow,
+  type StageRow, type StandardRow, type TaskCommentRow, type TaskRow,
+  type UserAccountRow,
 } from './seed'
 
 type Op = WriteOp<StoreName>
@@ -126,10 +128,52 @@ export interface NewPhotoInput {
   annotations?: Annotation[]
 }
 
+/**
+ * An apartment's `prog` and `late` are a read-out of its stage rows, so every
+ * stage write refreshes them — the map, the dashboard and the floor averages
+ * all read those two fields and would otherwise drift from the tracked truth.
+ */
+async function stageSyncOp(
+  backend: Backend<StoreName>,
+  proj: ProjectId,
+  aptNo: string,
+  stages: StageRow[],
+): Promise<Op[]> {
+  const apt = await backend.get<AptRow>('apartments', aptKey(proj, aptNo))
+  if (!apt) return []
+  const prog = progressFromStages(stages.map((s) => s.st))
+  const late = stages.some((s) => s.st === 'Delayed')
+  if (prog === apt.prog && late === apt.late) return []
+  return [{ store: 'apartments', put: { ...apt, prog, late } }]
+}
+
+/**
+ * The QA gate: open defects a stage answers for. Accepting is refused while
+ * this is non-empty. A STAGE_CATS entry is either a category or a single ჯგუფი,
+ * so a defect matches on whichever level the stage was written at. Handover
+ * maps to `'*'` — it cannot be signed off while the unit has an open defect of
+ * any kind.
+ */
+export function stageBlockers(stage: StageName, defects: Defect[]): Defect[] {
+  const cats: readonly string[] = STAGE_CATS[stage]
+  const open = defects.filter((d) => d.st !== 'დახურული')
+  if (cats.includes('*')) return open
+  return open.filter((d) => cats.includes(d.cat) || (d.group != null && cats.includes(d.group)))
+}
+
+/** Result of trying to move a stage on. `blockedBy` is only set when refused. */
+export interface StageAdvanceResult {
+  ok: boolean
+  stage: Stage | null
+  blockedBy: Defect[]
+}
+
 export interface NewDefectInput {
   apt: string
   room: string
   cat: string
+  /** The ჯგუფი inside `cat`, when the category has any. */
+  group?: string
   pri: Priority
   sub: string
   /** QA inspector filing the defect. */
@@ -182,6 +226,7 @@ export const api = {
         ord: prevOrd(all),
         id,
         cat: input.cat,
+        ...(input.group ? { group: input.group } : {}),
         apt: input.apt,
         room: input.room,
         pri: input.pri,
@@ -293,6 +338,82 @@ export const api = {
       }
       await backend.write([{ store: 'defectComments', put: comment }])
       return comment
+    },
+  },
+
+  stages: {
+    async forApartment(proj: ProjectId, no: string): Promise<Stage[]> {
+      const backend = await db()
+      return byOrd(await backend.getAll<StageRow>('stages', 'by-apartment', [proj, no]))
+    },
+
+    /**
+     * Moves a stage one step along `STAGE_FLOW`. Acceptance is checked here and
+     * not only in the UI: the button can be disabled, but the rule is what makes
+     * a Completed stage mean something.
+     */
+    async advance(
+      proj: ProjectId,
+      apt: string,
+      stage: StageName,
+      actor: string,
+    ): Promise<StageAdvanceResult> {
+      const backend = await db()
+      const current = await backend.get<StageRow>('stages', stageKey(proj, apt, stage))
+      if (!current) return { ok: false, stage: null, blockedBy: [] }
+
+      const st = nextStageStatus(current.st)
+      if (!st) return { ok: false, stage: current, blockedBy: [] }
+
+      if (st === 'Completed') {
+        const defects = await backend.getAll<DefectRow>('defects', 'by-apartment', [proj, apt])
+        const blockedBy = stageBlockers(stage, defects)
+        if (blockedBy.length) return { ok: false, stage: current, blockedBy }
+      }
+
+      const next: StageRow = { ...current, st, at: TODAY }
+      const siblings = await backend.getAll<StageRow>('stages', 'by-apartment', [proj, apt])
+
+      await backend.write([
+        { store: 'stages', put: next },
+        ...(await stageSyncOp(
+          backend,
+          proj,
+          apt,
+          siblings.map((s) => (s.stage === stage ? next : s)),
+        )),
+        await auditOp(
+          backend,
+          st === 'Completed' ? 'ეტაპი მიღებულია' : 'ეტაპის სტატუსი შეიცვალა',
+          `ბინა ${apt} · ${stage} → ${st}`,
+          actor,
+        ),
+      ])
+      return { ok: true, stage: next, blockedBy: [] }
+    },
+
+    /** Records who performed the stage. Crews are not users — this is a label. */
+    async setAssignee(
+      proj: ProjectId,
+      apt: string,
+      stage: StageName,
+      who: string,
+      actor: string,
+    ): Promise<Stage | null> {
+      const backend = await db()
+      const current = await backend.get<StageRow>('stages', stageKey(proj, apt, stage))
+      if (!current) return null
+      const next: StageRow = { ...current, who }
+      await backend.write([
+        { store: 'stages', put: next },
+        await auditOp(
+          backend,
+          'ეტაპის შემსრულებელი განისაზღვრა',
+          `ბინა ${apt} · ${stage} → ${who || '—'}`,
+          actor,
+        ),
+      ])
+      return next
     },
   },
 

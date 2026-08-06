@@ -2,7 +2,7 @@
 // log records who did what, and invalidates every query key the write touches.
 
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import type { DefectStatus, TaskColumn } from '@/data/domain'
+import type { DefectStatus, StageName, TaskColumn } from '@/data/domain'
 import { useSession } from '@/lib/session'
 import { api, type NewDefectInput } from './client'
 
@@ -43,6 +43,29 @@ export function useAddDefectComment(defectId: string) {
   return useMutation({
     mutationFn: (text: string) => api.defects.addComment(project.id, defectId, actor, text),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['defectComments', project.id, defectId] }),
+  })
+}
+
+export function useAdvanceStage() {
+  const qc = useQueryClient()
+  const { project } = useSession()
+  const actor = useActor()
+  return useMutation({
+    mutationFn: ({ apt, stage }: { apt: string; stage: StageName }) =>
+      api.stages.advance(project.id, apt, stage, actor),
+    // A refused advance writes nothing, so only refresh when one landed.
+    onSuccess: (res) => res.ok && invalidate(qc, ['stages', 'apartments', 'audit']),
+  })
+}
+
+export function useSetStageAssignee() {
+  const qc = useQueryClient()
+  const { project } = useSession()
+  const actor = useActor()
+  return useMutation({
+    mutationFn: ({ apt, stage, who }: { apt: string; stage: StageName; who: string }) =>
+      api.stages.setAssignee(project.id, apt, stage, who, actor),
+    onSuccess: () => invalidate(qc, ['stages', 'audit']),
   })
 }
 
