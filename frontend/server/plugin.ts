@@ -5,12 +5,12 @@
 // process the inspector has to remember to start, the handler rides along on
 // the server that is already running — `npm run dev` is still the whole command.
 //
-// For a real deployment, drop `handleNotifyDefect` into a serverless function
-// (Vercel, Netlify, Workers) and point the same path at it; nothing on the
-// client changes.
+// A deployed build has no Vite server, so production is served by the Vercel
+// function in `api/notify-defect.ts` instead — same path, same handler, so
+// nothing on the client changes.
 
 import { loadEnv, type Plugin, type Connect } from 'vite'
-import { handleNotifyDefect } from './notify'
+import { handleNotifyDefect } from './notify.js'
 
 const ROUTE = '/api/notify-defect'
 

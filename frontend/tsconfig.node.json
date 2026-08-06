@@ -1,8 +1,9 @@
 {
-  // The Node half of the repo: the Vite config and the notify endpoint it
-  // mounts. Kept apart from tsconfig.json so `process`, `Buffer` and the rest of
-  // the Node globals stay out of scope in the browser code, where reaching for
-  // one is a bug rather than a convenience.
+  // The Node half of the repo: the Vite config, the notify endpoint it mounts,
+  // and the serverless function that serves the same endpoint in production.
+  // Kept apart from tsconfig.json so `process`, `Buffer` and the rest of the
+  // Node globals stay out of scope in the browser code, where reaching for one
+  // is a bug rather than a convenience.
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
@@ -19,5 +20,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["server", "vite.config.ts"]
+  "include": ["server", "api", "vite.config.ts"]
 }
