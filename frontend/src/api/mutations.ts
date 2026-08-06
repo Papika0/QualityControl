@@ -1,5 +1,5 @@
-// Write hooks. Each one names the actor from the current session so the audit
-// log records who did what, and invalidates every query key the write touches.
+// Write hooks. Each one invalidates every query key the write touches; the ones
+// that record authorship also name the actor from the current session.
 
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { DefectStatus, StageName, TaskColumn } from '@/data/domain'
@@ -21,7 +21,7 @@ export function useCreateDefect() {
   const actor = useActor()
   return useMutation({
     mutationFn: (input: NewDefectInput) => api.defects.create(project.id, input, actor),
-    onSuccess: () => invalidate(qc, ['defects', 'apartments', 'audit']),
+    onSuccess: () => invalidate(qc, ['defects', 'apartments']),
   })
 }
 
@@ -32,7 +32,7 @@ export function useSetDefectStatus() {
   return useMutation({
     mutationFn: ({ id, st }: { id: string; st: DefectStatus }) =>
       api.defects.setStatus(project.id, id, st, actor),
-    onSuccess: () => invalidate(qc, ['defects', 'apartments', 'audit']),
+    onSuccess: () => invalidate(qc, ['defects', 'apartments']),
   })
 }
 
@@ -49,32 +49,29 @@ export function useAddDefectComment(defectId: string) {
 export function useAdvanceStage() {
   const qc = useQueryClient()
   const { project } = useSession()
-  const actor = useActor()
   return useMutation({
     mutationFn: ({ apt, stage }: { apt: string; stage: StageName }) =>
-      api.stages.advance(project.id, apt, stage, actor),
+      api.stages.advance(project.id, apt, stage),
     // A refused advance writes nothing, so only refresh when one landed.
-    onSuccess: (res) => res.ok && invalidate(qc, ['stages', 'apartments', 'audit']),
+    onSuccess: (res) => res.ok && invalidate(qc, ['stages', 'apartments']),
   })
 }
 
 export function useSetStageAssignee() {
   const qc = useQueryClient()
   const { project } = useSession()
-  const actor = useActor()
   return useMutation({
     mutationFn: ({ apt, stage, who }: { apt: string; stage: StageName; who: string }) =>
-      api.stages.setAssignee(project.id, apt, stage, who, actor),
-    onSuccess: () => invalidate(qc, ['stages', 'audit']),
+      api.stages.setAssignee(project.id, apt, stage, who),
+    onSuccess: () => invalidate(qc, ['stages']),
   })
 }
 
 export function useSetTaskColumn() {
   const qc = useQueryClient()
-  const actor = useActor()
   return useMutation({
-    mutationFn: ({ id, col }: { id: string; col: TaskColumn }) => api.tasks.setColumn(id, col, actor),
-    onSuccess: () => invalidate(qc, ['tasks', 'audit']),
+    mutationFn: ({ id, col }: { id: string; col: TaskColumn }) => api.tasks.setColumn(id, col),
+    onSuccess: () => invalidate(qc, ['tasks']),
   })
 }
 
@@ -89,11 +86,10 @@ export function useAddTaskComment(taskId: string) {
 
 export function useSetUserActive() {
   const qc = useQueryClient()
-  const actor = useActor()
   return useMutation({
     mutationFn: ({ mail, active }: { mail: string; active: boolean }) =>
-      api.users.setActive(mail, active, actor),
-    onSuccess: () => invalidate(qc, ['users', 'audit']),
+      api.users.setActive(mail, active),
+    onSuccess: () => invalidate(qc, ['users']),
   })
 }
 

@@ -23,7 +23,6 @@ export function MobileNav() {
   const { data: defects } = useQuery(defectsQuery(project.id))
   const [open, setOpen] = useState(false)
 
-  const isOwner = role?.id === 'owner'
   const openQa = defects?.filter((d) => d.st !== 'დახურული').length ?? 0
 
   // Close the sheet on Escape and whenever the route changes.
@@ -38,15 +37,10 @@ export function MobileNav() {
     toast({ kind: 'warn', title: 'წვდომა შეზღუდულია', desc: role?.scope ?? '' })
 
   const tabs = [
-    {
-      label: 'Dashboard',
-      icon: LayoutDashboard,
-      to: isOwner ? '/apartments/1204' : '/',
-      badge: 0,
-    },
-    { label: 'რუკა', icon: Map, to: '/map', badge: 0, blocked: isOwner },
-    { label: 'QA/QC', icon: TriangleAlert, to: '/qa', badge: isOwner ? 0 : openQa, blocked: isOwner },
-    { label: 'დავალებები', icon: SquareCheck, to: '/tasks', badge: 0, blocked: isOwner },
+    { label: 'Dashboard', icon: LayoutDashboard, to: '/', badge: 0 },
+    { label: 'რუკა', icon: Map, to: '/map', badge: 0 },
+    { label: 'QA/QC', icon: TriangleAlert, to: '/qa', badge: openQa },
+    { label: 'დავალებები', icon: SquareCheck, to: '/tasks', badge: 0 },
   ]
 
   return (
@@ -57,7 +51,7 @@ export function MobileNav() {
           return (
             <button
               key={t.label}
-              onClick={() => (t.blocked ? denied() : navigate({ to: t.to }))}
+              onClick={() => navigate({ to: t.to })}
               className={cn(
                 'relative flex flex-1 cursor-pointer flex-col items-center gap-0.75 pb-1.75 pt-2',
                 active ? 'text-brand' : 'text-mut',

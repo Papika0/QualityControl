@@ -14,7 +14,7 @@ import type { Annotation } from '@/lib/annotate'
 import {
   DEFECT_FLOW, PEOPLE, PROBLEM_CATS, PROJECTS, ROOMS, STAGES, SUBS, TASK_TYPES,
   progressFromStages, recoFor,
-  type Apartment, type ArchiveRow, type AuditRow, type ContractRow, type Defect,
+  type Apartment, type ArchiveRow, type Defect,
   type DefectComment, type DefectEvent, type DefectStatus, type DocRow,
   type Priority, type ProjectId, type Stage, type StageStatus, type Standard,
   type Task, type TaskComment, type UserRow,
@@ -30,7 +30,11 @@ import type { StoreName } from './schema'
 // v5 moved defects onto the site's own two-level taxonomy — a Georgian
 // პრობლემის კატეგორია plus a ჯგუფი — replacing the flat English category list.
 // v6 replaced the eight placeholder standards with the 28 real TEC documents.
-export const SEED_VERSION = 6
+// v7 narrowed the archive to the documents the site actually files —
+// ხელშეკრულება, აქტი and ჯარიმა — dropping invoices, expert reports and policies.
+// v8 dropped the contracts and audit-log datasets along with those modules.
+// v9 dropped the owner-portal documents and the two retired role accounts.
+export const SEED_VERSION = 9
 
 /**
  * Stored rows carry an `ord` so lists come back in generated order rather than
@@ -45,8 +49,6 @@ export type TaskRow = Ordered<Task>
 export type StandardRow = Ordered<Standard>
 export type DocumentRow = Ordered<DocRow>
 export type ArchiveDocRow = Ordered<ArchiveRow>
-export type ContractDocRow = Ordered<ContractRow>
-export type AuditEntryRow = Ordered<AuditRow>
 export type UserAccountRow = Ordered<UserRow>
 
 /**
@@ -257,18 +259,11 @@ const DRAWINGS: DocRow[] = [
   { code: 'AR-101', name: 'არქიტექტურა — გეგმები, კორპუსი A', meta: 'DWG + PDF · 214 ფურც.', rev: 'rev. D', st: 'დამტკიცებული' },
   { code: 'AR-102', name: 'არქიტექტურა — ფასადები', meta: 'PDF · 48 ფურც.', rev: 'rev. C', st: 'დამტკიცებული' },
   { code: 'KJ-201', name: 'კონსტრუქციული — კარკასი', meta: 'DWG · 156 ფურც.', rev: 'rev. E', st: 'დამტკიცებული' },
-  { code: 'MEP-E-09', name: 'ელექტროობა — სართ. 9-16', meta: 'DWG · 64 ფურც.', rev: 'rev. C', st: 'განხილვაში' },
+  { code: 'MEP-E-09', name: 'ელექტროობა', meta: 'DWG · 64 ფურც.', rev: 'rev. C', st: 'განხილვაში' },
   { code: 'MEP-P-04', name: 'სანტექნიკა — სადგამები', meta: 'PDF · 38 ფურც.', rev: 'rev. B', st: 'დამტკიცებული' },
   { code: 'HVAC-02', name: 'ვენტილაცია — საერთო ზონები', meta: 'DWG · 29 ფურც.', rev: 'rev. B', st: 'გადამუშავებაზე' },
   { code: 'FF-01', name: 'სახანძრო უსაფრთხოება', meta: 'PDF · 52 ფურც.', rev: 'rev. A', st: 'დამტკიცებული' },
   { code: 'LS-01', name: 'კეთილმოწყობა / ლანდშაფტი', meta: 'PDF · 18 ფურც.', rev: 'rev. A', st: 'განხილვაში' },
-]
-
-const OWNER_DOCS: DocRow[] = [
-  { code: 'CTR-1204', name: 'ნასყიდობის ხელშეკრულება', meta: 'PDF · 2.1 MB', rev: 'v1', st: 'ხელმოწერილი' },
-  { code: 'PLAN-1204', name: 'ბინის გეგმა A-1204', meta: 'PDF · 4.8 MB', rev: 'rev. C', st: 'დამტკიცებული' },
-  { code: 'ACT-1204', name: 'მიღება-ჩაბარების აქტი (დრაფტი)', meta: 'მომზადდება ჩაბარებისას', rev: '—', st: 'განხილვაში' },
-  { code: 'WRN-1204', name: 'გარანტიის პირობები', meta: 'PDF · 0.4 MB', rev: 'v2', st: 'ძალაშია' },
 ]
 
 const ARCHIVE: ArchiveRow[] = [
@@ -276,38 +271,14 @@ const ARCHIVE: ArchiveRow[] = [
   { id: 'ARC-02', ext: 'PDF', name: 'ხელშეკრულება — შპს ტექნო-ინსტალაცია', meta: 'ხელშეკრულება · 02 აპრ 2026', amt: '$268,500', st: 'ძალაშია' },
   { id: 'ARC-03', ext: 'PDF', name: 'ფარული სამუშაოების აქტი — B-0405', meta: 'აქტი · 18 ივლ 2026', amt: '—', st: 'ხელმოწერილი' },
   { id: 'ARC-04', ext: 'XLS', name: 'შესრულებული სამუშაოს აქტი №14', meta: 'აქტი · 25 ივლ 2026', amt: '$96,400', st: 'განხილვაში' },
-  { id: 'ARC-05', ext: 'PDF', name: 'ინვოისი INV-2214', meta: 'ინვოისი · 30 ივლ 2026', amt: '$48,200', st: 'გადახდილი' },
-  { id: 'ARC-06', ext: 'PDF', name: 'ინვოისი INV-2219', meta: 'ინვოისი · 31 ივლ 2026', amt: '$22,750', st: 'გამოწერილი' },
-  { id: 'ARC-07', ext: 'PDF', name: 'ექსპერტიზის დასკვნა — კარკასი', meta: 'ცნობა · 14 ივნ 2026', amt: '—', st: 'ძალაშია' },
-  { id: 'ARC-08', ext: 'IMG', name: 'ობიექტის დაზღვევის პოლისი', meta: 'ცნობა · 01 მარ 2026', amt: '—', st: 'ძალაშია' },
-]
-
-const CONTRACTS: ContractRow[] = [
-  { id: 'CTR-01', sub: 'შპს ალიანს-მშენი', scope: 'მოპირკეთება · სველი წერტილები', pct: 68, amt: '$412,000', paid: '$276,000', st: 'ძალაშია' },
-  { id: 'CTR-02', sub: 'შპს ტექნო-ინსტალაცია', scope: 'ელექტროობა · სუსტი დენები', pct: 74, amt: '$268,500', paid: '$198,700', st: 'ძალაშია' },
-  { id: 'CTR-03', sub: 'შპს ფასად-პრო', scope: 'ფასადი · მოჭიქვა', pct: 81, amt: '$524,000', paid: '$419,000', st: 'ძალაშია' },
-  { id: 'CTR-04', sub: 'ი/მ ჯ. წიკლაური', scope: 'სანტექნიკა — სად. A2', pct: 55, amt: '$96,000', paid: '$48,000', st: 'განხილვაში' },
-]
-
-const AUDIT_LOG: AuditRow[] = [
-  { id: 'LOG-01', t: '2026-08-01 09:42', action: 'ფოტო დაემატა (2)', detail: 'QA-1204-017 · After', who: 'გ. კვარაცხელია' },
-  { id: 'LOG-02', t: '2026-08-01 09:15', action: 'PDF გენერირდა და გაიგზავნა', detail: 'QA კვირის ანგარიში · 4 მიმღები', who: 'სისტემა' },
-  { id: 'LOG-03', t: '2026-08-01 08:58', action: 'სტატუსი შეიცვალა', detail: 'QA-0712-021 → შემოწმებაზე', who: 'ლ. ჩხეიძე' },
-  { id: 'LOG-04', t: '2026-07-31 17:40', action: 'დოკუმენტი აიტვირთა', detail: 'MEP-E-09 rev. C — ვიზირების ჯაჭვი დაიწყო', who: 'ნ. ბერიძე' },
-  { id: 'LOG-05', t: '2026-07-31 16:22', action: 'როლის უფლება შეიცვალა', detail: 'ქვეკონტრაქტორი: ფინანსები → დამალული', who: 'სისტემის ადმინი' },
-  { id: 'LOG-06', t: '2026-07-31 14:05', action: 'დავალება მიენიჭა', detail: 'T-1188 → თ. აბულაძე · ვადა 22 აგვ', who: 'ნ. ბერიძე' },
-  { id: 'LOG-07', t: '2026-07-30 18:11', action: 'წაშლის მცდელობა (უარყოფილია)', detail: 'QA-0611-013 — არასაკმარისი უფლება', who: 'ლ. ჩხეიძე' },
-  { id: 'LOG-08', t: '2026-07-30 11:47', action: 'ინვოისი დარეგისტრირდა', detail: 'INV-2214 · შპს ალიანს-მშენი · $48,200', who: 'ბუღალტერია' },
-  { id: 'LOG-09', t: '2026-07-29 10:02', action: 'ბინა ჩაბარდა', detail: 'ბინა 402 · Handover აქტი ხელმოწერილია', who: 'ნ. ბერიძე' },
-  { id: 'LOG-10', t: '2026-07-28 15:30', action: 'ახალი მომხმარებელი', detail: 'გ. წერეთელი · როლი: ზედამხედველი', who: 'სისტემის ადმინი' },
+  { id: 'ARC-05', ext: 'PDF', name: 'ჯარიმა — შპს ალიანს-მშენი · ვადის დარღვევა', meta: 'ჯარიმა · 22 ივლ 2026', amt: '$8,400', st: 'გამოწერილი' },
+  { id: 'ARC-06', ext: 'PDF', name: 'ჯარიმა — შპს ტექნო-ინსტალაცია · ხარისხის შენიშვნა', meta: 'ჯარიმა · 29 ივლ 2026', amt: '$3,150', st: 'გადახდილი' },
 ]
 
 const USERS: UserRow[] = [
   { ini: 'ნბ', name: 'ნინო ბერიძე', mail: 'n.beridze@company.ge', role: 'პროექტის მენეჯერი', scope: 'VKR · SBP', active: true },
   { ini: 'გკ', name: 'გიორგი კვარაცხელია', mail: 'g.kvara@company.ge', role: 'ზედამხედველი', scope: 'VKR', active: true },
   { ini: 'თა', name: 'თემურ აბულაძე', mail: 't.abuladze@company.ge', role: 'ტექ. დირექტორი', scope: 'ყველა', active: true },
-  { ini: 'ლჩ', name: 'ლევან ჩხეიძე', mail: 'l.chkheidze@alians.ge', role: 'ქვეკონტრაქტორი', scope: 'VKR · შეზღუდული', active: false },
-  { ini: 'დგ', name: 'დავით გოგოლაძე', mail: 'd.gogoladze@gmail.com', role: 'მფლობელი (Portal)', scope: 'A-1204', active: false },
 ]
 
 // -------------------------------------------------------------------- seeding
@@ -336,10 +307,7 @@ export function seedRecords(): WriteOp<StoreName>[] {
     ...puts('tasks', withOrd(TASKS)),
     ...puts('standards', withOrd(STANDARDS)),
     ...puts('drawings', withOrd(DRAWINGS)),
-    ...puts('ownerDocs', withOrd(OWNER_DOCS)),
     ...puts('archive', withOrd(ARCHIVE)),
-    ...puts('contracts', withOrd(CONTRACTS)),
-    ...puts('audit', withOrd(AUDIT_LOG)),
     ...puts('users', withOrd(USERS)),
   ]
 }

@@ -29,7 +29,6 @@ function ApartmentPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [stageName, setStageName] = useState<string | null>(null)
 
-  const isOwner = role?.id === 'owner'
   const canTrack = canTrackStages(role?.id)
   const A = apt ?? { no: aptNo, prog: 72, defects: 2, area: 78, rooms: 3, floor: 12, sold: true, late: false }
   const open = defects.filter((d) => d.st !== 'დახურული').length
@@ -97,13 +96,9 @@ function ApartmentPage() {
   return (
     <div>
       <PageHeader
-        back={!isOwner && <BackLink to="/map">რუკაზე დაბრუნება</BackLink>}
+        back={<BackLink to="/map">რუკაზე დაბრუნება</BackLink>}
         title={`ბინა ${A.no}`}
-        subtitle={
-          isOwner
-            ? 'მფლობელის პორტალი — ხედავთ მხოლოდ თქვენი ბინის მონაცემებს'
-            : `სართული ${A.floor} · ${project.name}`
-        }
+        subtitle={`სართული ${A.floor} · ${project.name}`}
         actions={
           <Button>
             <FileDown className="h-4 w-4" /> PDF ანგარიში
@@ -132,7 +127,7 @@ function ApartmentPage() {
         <TabsList>
           <TabsTrigger value="gen">ზოგადი</TabsTrigger>
           <TabsTrigger value="prog">სამუშაოები</TabsTrigger>
-          {!isOwner && <TabsTrigger value="qa">QA / ხარვეზები</TabsTrigger>}
+          <TabsTrigger value="qa">QA / ხარვეზები</TabsTrigger>
           <TabsTrigger value="photos">ფოტოები</TabsTrigger>
           <TabsTrigger value="docs">დოკუმენტები</TabsTrigger>
           <TabsTrigger value="hist">ისტორია</TabsTrigger>
@@ -242,31 +237,29 @@ function ApartmentPage() {
           </Card>
         </TabsContent>
 
-        {!isOwner && (
-          <TabsContent value="qa">
-            <Card>
-              <CardContent className="space-y-1 pt-4">
-                {defects.length === 0 && (
-                  <p className="px-2 py-6 text-center text-sm text-mut">ხარვეზი არ ფიქსირდება.</p>
-                )}
-                {defects.map((d) => (
-                  <button
-                    key={d.id}
-                    className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-soft cursor-pointer"
-                    onClick={() => setSelectedId(d.id)}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-bold">{d.id} · {d.group ?? d.cat}</div>
-                      <div className="truncate text-xs text-mut">{d.room} · {d.desc}</div>
-                    </div>
-                    <StatusBadge status={d.st} />
-                    <span className="text-xs text-mut">{d.due.slice(5)}</span>
-                  </button>
-                ))}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
+        <TabsContent value="qa">
+          <Card>
+            <CardContent className="space-y-1 pt-4">
+              {defects.length === 0 && (
+                <p className="px-2 py-6 text-center text-sm text-mut">ხარვეზი არ ფიქსირდება.</p>
+              )}
+              {defects.map((d) => (
+                <button
+                  key={d.id}
+                  className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-soft cursor-pointer"
+                  onClick={() => setSelectedId(d.id)}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-bold">{d.id} · {d.group ?? d.cat}</div>
+                    <div className="truncate text-xs text-mut">{d.room} · {d.desc}</div>
+                  </div>
+                  <StatusBadge status={d.st} />
+                  <span className="text-xs text-mut">{d.due.slice(5)}</span>
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="photos">
           <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(230px,1fr))] [&>*]:min-w-0">

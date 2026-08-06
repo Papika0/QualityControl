@@ -53,20 +53,11 @@ export const taskCommentsQuery = (taskId: string) =>
 export const standardsQuery = () =>
   queryOptions({ queryKey: ['standards'], queryFn: () => api.standards.list() })
 
-export const drawingsQuery = (owner: boolean) =>
-  queryOptions({
-    queryKey: ['drawings', owner],
-    queryFn: () => (owner ? api.docs.ownerDocs() : api.docs.drawings()),
-  })
+export const drawingsQuery = () =>
+  queryOptions({ queryKey: ['drawings'], queryFn: () => api.docs.drawings() })
 
 export const archiveQuery = () =>
   queryOptions({ queryKey: ['archive'], queryFn: () => api.docs.archive() })
-
-export const contractsQuery = () =>
-  queryOptions({ queryKey: ['contracts'], queryFn: () => api.finance.contracts() })
-
-export const auditQuery = () =>
-  queryOptions({ queryKey: ['audit'], queryFn: () => api.audit.list() })
 
 export const usersQuery = () =>
   queryOptions({ queryKey: ['users'], queryFn: () => api.users.list() })

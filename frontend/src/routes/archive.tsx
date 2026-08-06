@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { StatusBadge } from '@/components/ui/badge'
 import { Chip } from '@/components/ui/chip'
 
-const TYPES = ['ხელშეკრულება', 'აქტი', 'ინვოისი', 'ცნობა']
+const TYPES = ['ხელშეკრულება', 'აქტი', 'ჯარიმა']
 
 interface ArchiveSearch {
   type?: string
@@ -36,7 +36,7 @@ function ArchivePage() {
 
   return (
     <div>
-      <PageHeader title="დოკუმენტების არქივი" subtitle="ხელშეკრულებები · აქტები · ინვოისები · ცნობები" />
+      <PageHeader title="დოკუმენტების არქივი" subtitle="ხელშეკრულებები · აქტები · ჯარიმები" />
 
       <div className="mb-3 flex flex-wrap gap-1.5">
         <Chip active={!search.type} onClick={() => navigate({ search: {}, replace: true })}>

@@ -16,7 +16,7 @@ const DB_VERSION = 4
 export type StoreName =
   | 'apartments' | 'defects' | 'photos' | 'stages' | 'tasks' | 'taskComments'
   | 'defectComments' | 'standards'
-  | 'drawings' | 'ownerDocs' | 'archive' | 'contracts' | 'audit' | 'users'
+  | 'drawings' | 'archive' | 'users'
   | 'meta'
 
 const SPECS: StoreSpec<StoreName>[] = [
@@ -50,10 +50,7 @@ const SPECS: StoreSpec<StoreName>[] = [
   { name: 'defectComments', keyPath: 'id', indexes: [{ name: 'by-defect', keyPath: 'defect' }] },
   { name: 'standards', keyPath: 'code' },
   { name: 'drawings', keyPath: 'code' },
-  { name: 'ownerDocs', keyPath: 'code' },
   { name: 'archive', keyPath: 'id' },
-  { name: 'contracts', keyPath: 'id' },
-  { name: 'audit', keyPath: 'id' },
   { name: 'users', keyPath: 'mail' },
   { name: 'meta', keyPath: 'key' },
 ]

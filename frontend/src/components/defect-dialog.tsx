@@ -177,7 +177,7 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
           toast({
             kind: 'warn',
             title: 'დაბრუნდა გამოსასწორებლად — სტატუსი: ღია',
-            desc: 'მიზეზი ჩაიწერა Audit Log-ში, Push გაეგზავნა',
+            desc: 'მიზეზი ჩაიწერა ხარვეზის ისტორიაში, Push გაეგზავნა',
           }),
       },
     )

@@ -12,11 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ArchiveRouteImport } from './routes/archive'
-import { Route as AuditRouteImport } from './routes/audit'
 import { Route as DrawingsRouteImport } from './routes/drawings'
-import { Route as FinanceRouteImport } from './routes/finance'
 import { Route as MapRouteImport } from './routes/map'
-import { Route as MobileRouteImport } from './routes/mobile'
 import { Route as QaRouteImport } from './routes/qa'
 import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as TasksRouteImport } from './routes/tasks'
@@ -39,29 +36,14 @@ const ArchiveRoute = ArchiveRouteImport.update({
   path: '/archive',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuditRoute = AuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DrawingsRoute = DrawingsRouteImport.update({
   id: '/drawings',
   path: '/drawings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FinanceRoute = FinanceRouteImport.update({
-  id: '/finance',
-  path: '/finance',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const MapRoute = MapRouteImport.update({
   id: '/map',
   path: '/map',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MobileRoute = MobileRouteImport.update({
-  id: '/mobile',
-  path: '/mobile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QaRoute = QaRouteImport.update({
@@ -99,11 +81,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/archive': typeof ArchiveRoute
-  '/audit': typeof AuditRoute
   '/drawings': typeof DrawingsRoute
-  '/finance': typeof FinanceRoute
   '/map': typeof MapRoute
-  '/mobile': typeof MobileRoute
   '/qa': typeof QaRoute
   '/schedule': typeof ScheduleRoute
   '/tasks': typeof TasksRoute
@@ -115,11 +94,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/archive': typeof ArchiveRoute
-  '/audit': typeof AuditRoute
   '/drawings': typeof DrawingsRoute
-  '/finance': typeof FinanceRoute
   '/map': typeof MapRoute
-  '/mobile': typeof MobileRoute
   '/qa': typeof QaRoute
   '/schedule': typeof ScheduleRoute
   '/tasks': typeof TasksRoute
@@ -132,11 +108,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/archive': typeof ArchiveRoute
-  '/audit': typeof AuditRoute
   '/drawings': typeof DrawingsRoute
-  '/finance': typeof FinanceRoute
   '/map': typeof MapRoute
-  '/mobile': typeof MobileRoute
   '/qa': typeof QaRoute
   '/schedule': typeof ScheduleRoute
   '/tasks': typeof TasksRoute
@@ -150,11 +123,8 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/archive'
-    | '/audit'
     | '/drawings'
-    | '/finance'
     | '/map'
-    | '/mobile'
     | '/qa'
     | '/schedule'
     | '/tasks'
@@ -166,11 +136,8 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/archive'
-    | '/audit'
     | '/drawings'
-    | '/finance'
     | '/map'
-    | '/mobile'
     | '/qa'
     | '/schedule'
     | '/tasks'
@@ -182,11 +149,8 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/archive'
-    | '/audit'
     | '/drawings'
-    | '/finance'
     | '/map'
-    | '/mobile'
     | '/qa'
     | '/schedule'
     | '/tasks'
@@ -199,11 +163,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   ArchiveRoute: typeof ArchiveRoute
-  AuditRoute: typeof AuditRoute
   DrawingsRoute: typeof DrawingsRoute
-  FinanceRoute: typeof FinanceRoute
   MapRoute: typeof MapRoute
-  MobileRoute: typeof MobileRoute
   QaRoute: typeof QaRoute
   ScheduleRoute: typeof ScheduleRoute
   TasksRoute: typeof TasksRoute
@@ -235,13 +196,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArchiveRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/audit': {
-      id: '/audit'
-      path: '/audit'
-      fullPath: '/audit'
-      preLoaderRoute: typeof AuditRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/drawings': {
       id: '/drawings'
       path: '/drawings'
@@ -249,25 +203,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DrawingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/finance': {
-      id: '/finance'
-      path: '/finance'
-      fullPath: '/finance'
-      preLoaderRoute: typeof FinanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/map': {
       id: '/map'
       path: '/map'
       fullPath: '/map'
       preLoaderRoute: typeof MapRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/mobile': {
-      id: '/mobile'
-      path: '/mobile'
-      fullPath: '/mobile'
-      preLoaderRoute: typeof MobileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/qa': {
@@ -319,11 +259,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   ArchiveRoute: ArchiveRoute,
-  AuditRoute: AuditRoute,
   DrawingsRoute: DrawingsRoute,
-  FinanceRoute: FinanceRoute,
   MapRoute: MapRoute,
-  MobileRoute: MobileRoute,
   QaRoute: QaRoute,
   ScheduleRoute: ScheduleRoute,
   TasksRoute: TasksRoute,

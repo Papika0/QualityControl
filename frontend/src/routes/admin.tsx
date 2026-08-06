@@ -21,19 +21,19 @@ export const Route = createFileRoute('/admin')({
   component: AdminPage,
 })
 
-const MODULES = ['Dashboard', 'პროექტის რუკა', 'QA/QC', 'დავალებები', 'ნახაზები', 'დოკ. არქივი', 'ფინანსები', 'ადმინისტრირება']
+const MODULES = ['Dashboard', 'პროექტის რუკა', 'QA/QC', 'დავალებები', 'ნახაზები', 'დოკ. არქივი', 'ადმინისტრირება']
 
 // 1 = full, 2 = partial, 0 = hidden
 const PERMS: Record<string, number[]> = {
-  admin: [1, 1, 1, 1, 1, 1, 1, 1],
-  techdir: [1, 1, 1, 1, 1, 1, 1, 0],
-  pm: [1, 1, 1, 1, 1, 1, 0, 0],
-  qa: [1, 1, 1, 1, 1, 0, 0, 0],
-  sub: [0, 0, 2, 2, 1, 0, 0, 0],
-  owner: [0, 2, 0, 0, 0, 2, 0, 0],
+  admin: [1, 1, 1, 1, 1, 1, 1],
+  techdir: [1, 1, 1, 1, 1, 1, 0],
+  pmdir: [1, 1, 1, 1, 1, 1, 0],
+  pm: [1, 1, 1, 1, 1, 1, 0],
+  qa: [1, 1, 1, 1, 1, 0, 0],
+  techsup: [1, 1, 1, 1, 1, 0, 0],
 }
-const HEAD = ['ადმინი', 'ტექ.დირ', 'PM', 'QA', 'ქვეკონტრ.', 'მფლობ.']
-const ROLE_KEYS = ['admin', 'techdir', 'pm', 'qa', 'sub', 'owner']
+const HEAD = ['ადმინი', 'ტექ.დირ', 'პრ.დირ', 'PM', 'QA', 'ტექ.ზედ']
+const ROLE_KEYS = ['admin', 'techdir', 'pmdir', 'pm', 'qa', 'techsup']
 
 function AdminPage() {
   const { data: users } = useSuspenseQuery(usersQuery())

@@ -1,13 +1,12 @@
 // Domain model + reference data for the QC platform.
 // Ported from the approved interactive prototype (Nutsubidze 2A Platform).
 
-export type RoleId = 'admin' | 'techdir' | 'pm' | 'qa' | 'sub' | 'owner'
+export type RoleId = 'admin' | 'techdir' | 'pmdir' | 'pm' | 'qa' | 'techsup'
 
 export interface Role {
   id: RoleId
   name: string
   ini: string
-  canFinance: boolean
   canAdmin: boolean
   scope: string
 }
@@ -166,25 +165,6 @@ export interface ArchiveRow {
   st: string
 }
 
-export interface ContractRow {
-  id: string
-  sub: string
-  scope: string
-  pct: number
-  amt: string
-  paid: string
-  st: string
-}
-
-export interface AuditRow {
-  id: string
-  /** 'YYYY-MM-DD HH:mm' — sorts lexicographically. */
-  t: string
-  action: string
-  detail: string
-  who: string
-}
-
 export interface UserRow {
   ini: string
   name: string
@@ -214,12 +194,12 @@ export interface DefectComment {
 }
 
 export const ROLES: Role[] = [
-  { id: 'admin', name: 'სისტემის ადმინისტრატორი', ini: 'სა', canFinance: true, canAdmin: true, scope: 'ყველა პროექტი, ყველა მოდული' },
-  { id: 'techdir', name: 'ტექნიკური დირექტორი', ini: 'თდ', canFinance: true, canAdmin: false, scope: 'ყველა პროექტი' },
-  { id: 'pm', name: 'პროექტის მენეჯერი', ini: 'ნბ', canFinance: false, canAdmin: false, scope: 'საკუთარი პროექტები' },
-  { id: 'qa', name: 'ზედამხედველი (QA/QC)', ini: 'გკ', canFinance: false, canAdmin: false, scope: 'მინიჭებული პროექტები' },
-  { id: 'sub', name: 'ქვეკონტრაქტორი', ini: 'ლჩ', canFinance: false, canAdmin: false, scope: 'მხოლოდ საკუთარი სამუშაოები' },
-  { id: 'owner', name: 'ბინის მფლობელი (Portal)', ini: 'დგ', canFinance: false, canAdmin: false, scope: 'მხოლოდ ბინა 1204' },
+  { id: 'admin', name: 'სისტემის ადმინისტრატორი', ini: 'სა', canAdmin: true, scope: 'ყველა პროექტი, ყველა მოდული' },
+  { id: 'techdir', name: 'ტექნიკური დირექტორი', ini: 'თდ', canAdmin: false, scope: 'ყველა პროექტი' },
+  { id: 'pmdir', name: 'პროექტების მართვის დირექტორი', ini: 'პდ', canAdmin: false, scope: 'ყველა პროექტი' },
+  { id: 'pm', name: 'პროექტის მენეჯერი', ini: 'ნბ', canAdmin: false, scope: 'საკუთარი პროექტები' },
+  { id: 'qa', name: 'ზედამხედველი (QA/QC)', ini: 'გკ', canAdmin: false, scope: 'მინიჭებული პროექტები' },
+  { id: 'techsup', name: 'ტექნიკური ზედამხედველი', ini: 'ტზ', canAdmin: false, scope: 'მინიჭებული პროექტები' },
 ]
 
 export const PROJECTS: Project[] = [
@@ -521,9 +501,21 @@ export const STAGE_ACTION: Record<StageStatus, string | null> = {
   Delayed: 'განახლება',
 }
 
-/** Roles allowed to record stage progress — QA and the management above it. */
+/** Roles allowed to record stage progress — supervision and the management above it. */
 export function canTrackStages(role: RoleId | undefined): boolean {
-  return role === 'qa' || role === 'admin' || role === 'techdir' || role === 'pm'
+  return (
+    role === 'qa' || role === 'techsup' || role === 'admin' ||
+    role === 'techdir' || role === 'pmdir' || role === 'pm'
+  )
+}
+
+/**
+ * Roles allowed to hand out a task. On site the assignment comes from the
+ * technical director or the project manager; supervisors execute and report,
+ * they do not create the work order.
+ */
+export function canAssignTasks(role: RoleId | undefined): boolean {
+  return role === 'techdir' || role === 'pm' || role === 'admin'
 }
 
 /** How much of a stage counts as done — the basis of an apartment's progress. */

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { CircleCheck, FileDown, Lock, Plus, ShieldCheck, X } from 'lucide-react'
+import { CircleCheck, FileDown, Plus, X } from 'lucide-react'
 import { defectsQuery } from '@/api/queries'
 import { CATS, DEFECT_FLOW, PRI_DOT, PRI_LABEL, TODAY, type Defect, type DefectStatus, type Priority } from '@/data/domain'
 import { useSession } from '@/lib/session'
@@ -48,19 +48,11 @@ export const Route = createFileRoute('/qa')({
 
 const PRI_WEIGHT: Record<Priority, number> = { high: 0, med: 1, low: 2 }
 
-/** Retention held back per subcontractor until their defects close. Finance roles only. */
-const RETENTION_CHIPS = [
-  'ალიანს-მშენი $38.2K',
-  'ტექნო-ინსტალაცია $24.1K',
-  'ფასად-პრო $18.4K',
-  'წიკლაური $11.7K',
-]
-
 /** Card height + the 8px gap between cards. */
 const ROW_SIZE = 56
 
 function QaPage() {
-  const { project, role } = useSession()
+  const { project } = useSession()
   const toast = useToast()
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
@@ -74,12 +66,10 @@ function QaPage() {
   // the fold. Remember its id to scroll it into view and flash the card.
   const [flashId, setFlashId] = useState<string | null>(null)
 
-  const isSub = role?.id === 'sub'
   const selected = all.find((d) => d.id === selectedId) ?? null
 
   const rows = useMemo(() => {
     let list = all
-    if (isSub) list = list.filter((d) => d.sub === 'შპს ალიანს-მშენი')
     if (search.st) list = list.filter((d) => d.st === search.st)
     if (search.pri) list = list.filter((d) => d.pri === search.pri)
     if (search.overdue) list = list.filter((d) => d.due < TODAY && d.st !== 'დახურული')
@@ -92,7 +82,7 @@ function QaPage() {
       pri: (a, b) => PRI_WEIGHT[a.pri] - PRI_WEIGHT[b.pri] || a.due.localeCompare(b.due),
     }
     return [...list].sort(cmp[sort])
-  }, [all, search, isSub, sort])
+  }, [all, search, sort])
 
   // A `?id=` in the URL opens that defect — the deep-link used by ⌘K and notifications.
   useEffect(() => {
@@ -203,36 +193,6 @@ function QaPage() {
           </>
         }
       />
-
-      {isSub && (
-        <div className="mb-3.5 flex items-start gap-2.5 rounded-[10px] border border-note-line bg-note-bg px-4 py-2.75 text-[12.5px] text-note-label">
-          <ShieldCheck className="mt-0.5 h-3.75 w-3.75 flex-none" />
-          <span>
-            Record-level წვდომა — ხედავთ მხოლოდ თქვენს კომპანიაზე („შპს ალიანს-მშენი") მიბმულ
-            ჩანაწერებს. ფინანსური ველები დამალულია.
-          </span>
-        </div>
-      )}
-
-      {role?.canFinance && (
-        <div className="mb-3.5 flex flex-wrap items-center gap-3 rounded-[11px] border border-line border-l-[3px] border-l-warn bg-card px-4 py-2.75">
-          <Lock className="h-3.75 w-3.75 text-warn" />
-          <span className="text-xs font-bold">
-            Retention დაბლოკილია: <span className="text-sm">$92,400</span>
-          </span>
-          {RETENTION_CHIPS.map((r) => (
-            <span
-              key={r}
-              className="rounded-full bg-soft-2 px-2.5 py-0.75 text-[10.5px] font-semibold text-mut-3"
-            >
-              {r}
-            </span>
-          ))}
-          <span className="ml-auto text-[11px] text-mut-2">
-            იხსნება ხარვეზების დახურვისას — ავტომატურად
-          </span>
-        </div>
-      )}
 
       {/* Below `sm` the chips ride one edge-to-edge scroll strip — stacking them
           left-aligned over three ragged rows was the mobile eyesore. `sm:contents`

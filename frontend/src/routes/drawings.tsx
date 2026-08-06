@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { Upload } from 'lucide-react'
 import { drawingsQuery } from '@/api/queries'
-import { useSession } from '@/lib/session'
 import { PageHeader } from '@/components/page-header'
 import { Card, CardContent } from '@/components/ui/card'
 import { StatusBadge } from '@/components/ui/badge'
@@ -14,26 +13,17 @@ export const Route = createFileRoute('/drawings')({
 })
 
 function DrawingsPage() {
-  const { role } = useSession()
-  const isOwner = role?.id === 'owner'
-  const { data: docs } = useSuspenseQuery(drawingsQuery(isOwner))
-  const canUpload = !isOwner && role?.id !== 'sub'
+  const { data: docs } = useSuspenseQuery(drawingsQuery())
 
   return (
     <div>
       <PageHeader
-        title={isOwner ? 'ჩემი დოკუმენტები' : 'ნახაზების რეესტრი'}
-        subtitle={
-          isOwner
-            ? 'ბინა 1204-თან დაკავშირებული დოკუმენტები'
-            : 'ატვირთვისას ახალი რევიზია ავტომატურად აგზავნის შეტყობინებას ვიზირების ჯაჭვზე'
-        }
+        title="ნახაზების რეესტრი"
+        subtitle="ატვირთვისას ახალი რევიზია ავტომატურად აგზავნის შეტყობინებას ვიზირების ჯაჭვზე"
         actions={
-          canUpload && (
-            <Button>
-              <Upload className="h-4 w-4" /> ატვირთვა
-            </Button>
-          )
+          <Button>
+            <Upload className="h-4 w-4" /> ატვირთვა
+          </Button>
         }
       />
       <Card>

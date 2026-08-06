@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import {
-  Archive, BookMarked, CalendarRange, CircleDollarSign, FileText, History,
-  LayoutDashboard, Map, Settings2, Smartphone, SquareCheck, TriangleAlert,
+  Archive, BookMarked, CalendarRange, FileText,
+  LayoutDashboard, Map, Settings2, SquareCheck, TriangleAlert,
 } from 'lucide-react'
 import { defectsQuery } from '@/api/queries'
 import { useSession } from '@/lib/session'
@@ -25,27 +25,6 @@ export function useNavGroups(): NavGroup[] {
   const { data: defects } = useQuery(defectsQuery(project.id))
   const openQa = defects?.filter((d) => d.st !== 'დახურული').length ?? 0
 
-  if (role?.id === 'owner') {
-    return [
-      {
-        label: 'ჩემი ბინა',
-        items: [
-          { to: '/apartments/1204', label: 'ბინა 1204', icon: LayoutDashboard },
-          { to: '/drawings', label: 'ჩემი დოკუმენტები', icon: FileText },
-          { to: '/audit', label: 'ისტორია', icon: History },
-        ],
-      },
-      {
-        label: 'შეზღუდული',
-        items: [
-          { to: '/finance', label: 'ფინანსები', icon: CircleDollarSign, locked: true },
-          { to: '/map', label: 'სხვა ბინები', icon: Map, locked: true },
-          { to: '/qa', label: 'შიდა QA/QC', icon: TriangleAlert, locked: true },
-        ],
-      },
-    ]
-  }
-
   return [
     {
       label: 'პროექტი',
@@ -68,14 +47,8 @@ export function useNavGroups(): NavGroup[] {
     {
       label: 'კონტროლი',
       items: [
-        { to: '/finance', label: 'ფინანსები', icon: CircleDollarSign, locked: !role?.canFinance },
-        { to: '/audit', label: 'ისტორია / Audit Log', icon: History },
         { to: '/admin', label: 'ადმინისტრირება', icon: Settings2, locked: !role?.canAdmin },
       ],
-    },
-    {
-      label: 'მოწყობილობები',
-      items: [{ to: '/mobile', label: 'მობილური აპი — Field', icon: Smartphone }],
     },
   ]
 }

@@ -4,7 +4,8 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { Plus, X } from 'lucide-react'
 import { tasksQuery } from '@/api/queries'
 import { useSetTaskColumn } from '@/api/mutations'
-import { PRI_DOT, TASK_TYPES, type TaskColumn } from '@/data/domain'
+import { PRI_DOT, TASK_TYPES, canAssignTasks, type TaskColumn } from '@/data/domain'
+import { useSession } from '@/lib/session'
 import { PageHeader } from '@/components/page-header'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -43,6 +44,8 @@ function TasksPage() {
   const navigate = useNavigate({ from: Route.fullPath })
   const { data: tasks } = useSuspenseQuery(tasksQuery())
   const advance = useSetTaskColumn()
+  const { role } = useSession()
+  const canAssign = canAssignTasks(role?.id)
   // Track the id, not the row: the column change is persisted and refetched,
   // so the open dialog must read from the fresh list.
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -70,9 +73,11 @@ function TasksPage() {
         title="დავალებები"
         subtitle={`${filtered.length} დავალება`}
         actions={
-          <Button>
-            <Plus className="h-4 w-4" /> ახალი დავალება
-          </Button>
+          canAssign && (
+            <Button>
+              <Plus className="h-4 w-4" /> ახალი დავალება
+            </Button>
+          )
         }
       />
 

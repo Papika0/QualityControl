@@ -99,7 +99,7 @@ export function Topbar() {
           value={role?.id}
           onValueChange={(v) => {
             setRole(v as RoleId)
-            navigate({ to: v === 'owner' ? '/apartments/$aptNo' : '/', params: { aptNo: '1204' } })
+            navigate({ to: '/' })
           }}
         >
           <SelectTrigger className="hidden w-52.5 nav:flex">

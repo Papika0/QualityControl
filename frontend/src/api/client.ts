@@ -4,12 +4,12 @@
 //
 // Reads return plain domain objects; the storage-only fields (`key`, `proj`,
 // `ord`) ride along harmlessly. Writes go through `backend.write`, which lands
-// every op of a mutation — the record, the derived apartment count, the audit
-// entry — in a single transaction.
+// every op of a mutation — the record and the derived apartment count — in a
+// single transaction.
 
 import {
   STAGE_CATS, TODAY, nextStageStatus, progressFromStages,
-  type Apartment, type ArchiveRow, type ContractRow, type Defect, type DefectComment,
+  type Apartment, type ArchiveRow, type Defect, type DefectComment,
   type DefectStatus, type DocRow, type Priority, type ProjectId, type Stage,
   type StageName, type Standard, type Task, type TaskColumn, type TaskComment,
   type UserRow,
@@ -20,7 +20,7 @@ import type { Backend, WriteOp } from './idb'
 import { db, resetDatabase, type StoreName } from './schema'
 import {
   aptKey, defectKey, stageKey,
-  type AptRow, type ArchiveDocRow, type AuditEntryRow, type ContractDocRow,
+  type AptRow, type ArchiveDocRow,
   type DefectCommentRow, type DefectRow, type DocumentRow, type PhotoRow,
   type StageRow, type StandardRow, type TaskCommentRow, type TaskRow,
   type UserAccountRow,
@@ -54,35 +54,11 @@ export function addDays(date: string, days: number): string {
   return isoDate(d)
 }
 
-/** Audit log stamp: `YYYY-MM-DD HH:mm`, which sorts lexicographically. */
-function stamp(d: Date): string {
-  return `${isoDate(d)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
-}
-
 function newId(prefix: string): string {
   const rand =
     globalThis.crypto?.randomUUID?.() ??
     `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
   return `${prefix}-${rand.replace(/-/g, '').slice(0, 10)}`
-}
-
-/** Builds the audit-log op that accompanies a mutation. */
-async function auditOp(
-  backend: Backend<StoreName>,
-  action: string,
-  detail: string,
-  who: string,
-): Promise<Op> {
-  const existing = await backend.getAll<AuditEntryRow>('audit')
-  const entry: AuditEntryRow = {
-    id: newId('LOG'),
-    ord: nextOrd(existing),
-    t: stamp(new Date()),
-    action,
-    detail,
-    who,
-  }
-  return { store: 'audit', put: entry }
 }
 
 /**
@@ -259,17 +235,10 @@ export const api = {
         })),
       )
 
-      const detail = `${id} · ${input.cat} · ბინა ${input.apt}`
       await backend.write([
         { store: 'defects', put: row },
         ...photos.map((put): Op => ({ store: 'photos', put })),
         ...(await recountOp(backend, proj, input.apt, [...forApt, row])),
-        await auditOp(
-          backend,
-          'ხარვეზი დარეგისტრირდა',
-          photos.length ? `${detail} · ${photos.length} ფოტო` : detail,
-          actor,
-        ),
       ])
       return row
     },
@@ -308,7 +277,6 @@ export const api = {
           current.apt,
           siblings.map((d) => (d.id === id ? next : d)),
         )),
-        await auditOp(backend, 'სტატუსი შეიცვალა', `${id} → ${st}`, actor),
       ])
       return next
     },
@@ -352,12 +320,7 @@ export const api = {
      * not only in the UI: the button can be disabled, but the rule is what makes
      * a Completed stage mean something.
      */
-    async advance(
-      proj: ProjectId,
-      apt: string,
-      stage: StageName,
-      actor: string,
-    ): Promise<StageAdvanceResult> {
+    async advance(proj: ProjectId, apt: string, stage: StageName): Promise<StageAdvanceResult> {
       const backend = await db()
       const current = await backend.get<StageRow>('stages', stageKey(proj, apt, stage))
       if (!current) return { ok: false, stage: null, blockedBy: [] }
@@ -382,12 +345,6 @@ export const api = {
           apt,
           siblings.map((s) => (s.stage === stage ? next : s)),
         )),
-        await auditOp(
-          backend,
-          st === 'Completed' ? 'ეტაპი მიღებულია' : 'ეტაპის სტატუსი შეიცვალა',
-          `ბინა ${apt} · ${stage} → ${st}`,
-          actor,
-        ),
       ])
       return { ok: true, stage: next, blockedBy: [] }
     },
@@ -398,21 +355,12 @@ export const api = {
       apt: string,
       stage: StageName,
       who: string,
-      actor: string,
     ): Promise<Stage | null> {
       const backend = await db()
       const current = await backend.get<StageRow>('stages', stageKey(proj, apt, stage))
       if (!current) return null
       const next: StageRow = { ...current, who }
-      await backend.write([
-        { store: 'stages', put: next },
-        await auditOp(
-          backend,
-          'ეტაპის შემსრულებელი განისაზღვრა',
-          `ბინა ${apt} · ${stage} → ${who || '—'}`,
-          actor,
-        ),
-      ])
+      await backend.write([{ store: 'stages', put: next }])
       return next
     },
   },
@@ -423,15 +371,12 @@ export const api = {
       return byOrd(await backend.getAll<TaskRow>('tasks'))
     },
 
-    async setColumn(id: string, col: TaskColumn, actor: string): Promise<Task | null> {
+    async setColumn(id: string, col: TaskColumn): Promise<Task | null> {
       const backend = await db()
       const current = await backend.get<TaskRow>('tasks', id)
       if (!current) return null
       const next: TaskRow = { ...current, col }
-      await backend.write([
-        { store: 'tasks', put: next },
-        await auditOp(backend, 'დავალების სტატუსი შეიცვალა', `${id} · ${current.title}`, actor),
-      ])
+      await backend.write([{ store: 'tasks', put: next }])
       return next
     },
 
@@ -468,29 +413,9 @@ export const api = {
       const backend = await db()
       return byOrd(await backend.getAll<DocumentRow>('drawings'))
     },
-    async ownerDocs(): Promise<DocRow[]> {
-      const backend = await db()
-      return byOrd(await backend.getAll<DocumentRow>('ownerDocs'))
-    },
     async archive(): Promise<ArchiveRow[]> {
       const backend = await db()
       return byOrd(await backend.getAll<ArchiveDocRow>('archive'))
-    },
-  },
-
-  finance: {
-    async contracts(): Promise<ContractRow[]> {
-      const backend = await db()
-      return byOrd(await backend.getAll<ContractDocRow>('contracts'))
-    },
-  },
-
-  audit: {
-    /** Newest first. */
-    async list(): Promise<AuditEntryRow[]> {
-      const backend = await db()
-      const rows = await backend.getAll<AuditEntryRow>('audit')
-      return rows.sort((a, b) => (a.t === b.t ? b.ord - a.ord : b.t < a.t ? -1 : 1))
     },
   },
 
@@ -500,20 +425,12 @@ export const api = {
       return byOrd(await backend.getAll<UserAccountRow>('users'))
     },
 
-    async setActive(mail: string, active: boolean, actor: string): Promise<UserRow | null> {
+    async setActive(mail: string, active: boolean): Promise<UserRow | null> {
       const backend = await db()
       const current = await backend.get<UserAccountRow>('users', mail)
       if (!current) return null
       const next: UserAccountRow = { ...current, active }
-      await backend.write([
-        { store: 'users', put: next },
-        await auditOp(
-          backend,
-          active ? 'მომხმარებელი გააქტიურდა' : 'მომხმარებელი შეიზღუდა',
-          `${current.name} · ${current.role}`,
-          actor,
-        ),
-      ])
+      await backend.write([{ store: 'users', put: next }])
       return next
     },
   },

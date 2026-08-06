@@ -19,7 +19,7 @@ const STATS = [
 ]
 
 /** Roles that must clear a second factor before entering. */
-const NEEDS_2FA: RoleId[] = ['admin', 'techdir']
+const NEEDS_2FA: RoleId[] = ['admin', 'techdir', 'pmdir']
 
 export function LoginScreen() {
   const { login } = useSession()
@@ -31,7 +31,7 @@ export function LoginScreen() {
 
   const finish = () => {
     login(roleId)
-    navigate({ to: roleId === 'owner' ? '/apartments/$aptNo' : '/', params: { aptNo: '1204' } })
+    navigate({ to: '/' })
   }
 
   const setOtpAt = (i: number, v: string) => {
