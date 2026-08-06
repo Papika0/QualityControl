@@ -11,7 +11,10 @@
 // the one implementation.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { handleNotifyDefect } from '../server/notify'
+// The `.js` extension is what TypeScript emits verbatim and what Node resolves
+// at runtime; it still points at the `.ts` source at compile time. Without it
+// the built function throws ERR_MODULE_NOT_FOUND on the first request.
+import { handleNotifyDefect } from '../server/notify.js'
 
 // The Resend call is a single round trip, but a cold start plus three
 // attachments deserves more headroom than the 10s default.

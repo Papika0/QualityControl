@@ -10,7 +10,7 @@
 // nothing on the client changes.
 
 import { loadEnv, type Plugin, type Connect } from 'vite'
-import { handleNotifyDefect } from './notify'
+import { handleNotifyDefect } from './notify.js'
 
 const ROUTE = '/api/notify-defect'
 

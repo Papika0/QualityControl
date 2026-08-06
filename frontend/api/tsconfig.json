@@ -1,0 +1,22 @@
+{
+  // Read by Vercel's function builder, not by `npm run typecheck` — the builder
+  // resolves a tsconfig by walking up from the entrypoint, so this one wins over
+  // the root config before it can be reached.
+  //
+  // That matters because the builder force-sets `noEmit: false` to compile the
+  // function, and the root config's `allowImportingTsExtensions` is only legal
+  // while `noEmit` is on. Inheriting it fails the build with TS5096.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "skipLibCheck": true,
+    "strict": true,
+    "moduleDetection": "force"
+  },
+  // Only what the function actually pulls in. `server/plugin.ts` is deliberately
+  // left out — it imports Vite, which has no business in a serverless bundle.
+  "include": [".", "../server/notify.ts", "../server/team.ts", "../server/template.ts"]
+}

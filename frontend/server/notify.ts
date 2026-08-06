@@ -10,8 +10,8 @@
 // a second implementation.
 
 import { Resend } from 'resend'
-import { memberById } from './team'
-import { html, subject, text, type DefectMail, type Priority } from './template'
+import { memberById } from './team.js'
+import { html, subject, text, type DefectMail, type Priority } from './template.js'
 
 /** Attachments beyond this are dropped — the mail is a notice, not an archive. */
 const MAX_ATTACHMENTS = 3

@@ -9,7 +9,7 @@
 // and BPG/Noto cover the rest; without it Outlook drops to a font with no
 // Georgian glyphs and the whole body renders as boxes.
 
-import type { QaMember } from './team'
+import type { QaMember } from './team.js'
 
 const FONT =
   "'Segoe UI', Roboto, 'Helvetica Neue', Arial, Sylfaen, 'Noto Sans Georgian', sans-serif"
