@@ -29,9 +29,18 @@ export function Topbar() {
 
   return (
     <header className="relative flex h-14 items-center gap-3 border-b border-line bg-card px-4">
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2.5">
+        {/* Below `nav` the sidebar is gone, and the brand mark it carries goes
+            with it — which left the project name as the first thing on the
+            screen, hard against the corner. Putting the mark back on mobile
+            only opens the header with the product on every viewport. */}
+        <div className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand font-display text-sm font-extrabold text-white nav:hidden">
+          K
+        </div>
         <Select value={project.id} onValueChange={(v) => setProject(v as ProjectId)}>
-          <SelectTrigger className="w-52">
+          {/* Narrower on a phone to pay for the mark; the trigger already
+              truncates, and the full name is there once the list opens. */}
+          <SelectTrigger className="w-40 nav:w-52">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

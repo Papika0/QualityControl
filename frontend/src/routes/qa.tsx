@@ -368,7 +368,12 @@ function QaPage() {
                       >
                         {d.due}
                       </span>
-                      <StatusBadge status={d.st} className="w-18.5 flex-none justify-center" />
+                      {/* min-, not a fixed width: every current status fits the
+                          100px floor and so renders at a uniform size, but a
+                          longer one grows the pill instead of spilling its text
+                          outside the rounded background — which is what
+                          "შემოწმებაზე" did at the old 74px. */}
+                      <StatusBadge status={d.st} className="min-w-25 flex-none justify-center" />
                     </button>
                   )
                 })}

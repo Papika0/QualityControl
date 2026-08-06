@@ -223,7 +223,7 @@ function generateDefects(proj: ProjectId, no: string, count: number, baseOrd: nu
       room: ROOMS[Math.floor(hash01(k + 'r') * 5)]!,
       pri: (['high', 'med', 'low'] as Priority[])[Math.floor(hash01(k + 'p') * 3)]!,
       st: (['ღია', 'მიმდინარე', 'შემოწმებაზე', 'დახურული'] as const)[Math.floor(hash01(k + 's') * 4)]!,
-      who: PEOPLE[Math.floor(hash01(k + 'w') * 7)]!,
+      who: PEOPLE[Math.floor(hash01(k + 'w') * PEOPLE.length)]!,
       sub: SUBS[Math.floor(hash01(k + 'u') * 4)]!,
       due: `2026-0${7 + Math.floor(hash01(k + 'd') * 2)}-${String(4 + Math.floor(hash01(k + 'e') * 22)).padStart(2, '0')}`,
       // The corrective measure the filing form would have proposed for this
