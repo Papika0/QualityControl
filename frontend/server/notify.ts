@@ -20,6 +20,17 @@ const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024
 
 const PRIORITIES: Priority[] = ['high', 'med', 'low']
 
+/**
+ * Ceiling on the hand-added copies. `assignee` is an id the server resolves,
+ * but these are raw addresses off the browser — the cap is what stops a
+ * tampered request from turning the endpoint into a mailer.
+ */
+const MAX_CC = 10
+
+/** Same shallow shape check as `src/lib/email.ts`, duplicated deliberately:
+ *  this side builds under its own tsconfig, and must not trust the client's. */
+const MAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
 export interface NotifyPhoto {
   name: string
   /** Base64, no data-URL prefix. */
@@ -36,18 +47,28 @@ export interface NotifyRequest {
   floor: string
   room: string
   cat: string
+  /** `code — title` of the standard cited, when the filing named one. */
+  standard?: string
   pri: Priority
   sub: string
   due: string
   desc: string
   filedBy: string
   link?: string
+  /**
+   * Extra addresses the inspector added by hand, copied on the notice. Unlike
+   * `assignee` these are raw mailboxes typed in the browser, so `parse`
+   * validates, dedupes and caps them before any of them reach Resend.
+   */
+  cc?: string[]
   photos?: NotifyPhoto[]
 }
 
 export interface NotifyResult {
   status: number
-  body: { ok: true; to: string; mailId: string | null } | { ok: false; error: string }
+  body:
+    | { ok: true; to: string; cc: string[]; mailId: string | null }
+    | { ok: false; error: string }
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '')
@@ -66,6 +87,19 @@ function parse(raw: unknown): NotifyRequest | string {
   const id = str(b.id)
   if (!id) return 'id აკლია'
 
+  // Manual copies: validated, lowercased, deduped, and never a second copy to
+  // the assignee — who is already the `to`.
+  const own = memberById(assignee)!.mail.toLowerCase()
+  const cc: string[] = []
+  for (const raw of Array.isArray(b.cc) ? b.cc : []) {
+    const mail = str(raw).toLowerCase()
+    if (!mail) continue
+    if (!MAIL_SHAPE.test(mail)) return `არასწორი ელფოსტა: ${mail}`
+    if (mail === own || cc.includes(mail)) continue
+    if (cc.length >= MAX_CC) return `მაქსიმუმ ${MAX_CC} დამატებითი მიმღები`
+    cc.push(mail)
+  }
+
   const photos = Array.isArray(b.photos)
     ? b.photos
         .filter((p): p is NotifyPhoto => !!p && typeof p === 'object' && typeof (p as NotifyPhoto).data === 'string')
@@ -81,11 +115,13 @@ function parse(raw: unknown): NotifyRequest | string {
     floor: str(b.floor) || '—',
     room: str(b.room) || '—',
     cat: str(b.cat) || '—',
+    standard: str(b.standard) || undefined,
     sub: str(b.sub) || '—',
     due: str(b.due),
     desc: str(b.desc) || '—',
     filedBy: str(b.filedBy) || '—',
     link: str(b.link) || undefined,
+    cc,
     photos,
   }
 }
@@ -131,10 +167,15 @@ export async function handleNotifyDefect(raw: unknown): Promise<NotifyResult> {
     .map((s) => s.trim())
     .filter(Boolean)
 
+  // The hand-added addresses are copied, not addressed: the body greets the
+  // assignee by name, and a typed address has no name to greet.
+  const cc = parsed.cc ?? []
+
   try {
     const { data, error } = await new Resend(key).emails.send({
       from: process.env.QC_MAIL_FROM || 'QC Platform <onboarding@resend.dev>',
       to: [to.mail],
+      ...(cc.length ? { cc } : {}),
       ...(bcc.length ? { bcc } : {}),
       subject: subject(mail),
       html: html(mail, to),
@@ -148,7 +189,7 @@ export async function handleNotifyDefect(raw: unknown): Promise<NotifyResult> {
     // `error` with a 200 on the wire, so this branch is the common failure —
     // not the catch below.
     if (error) return { status: 502, body: { ok: false, error: error.message } }
-    return { status: 200, body: { ok: true, to: to.mail, mailId: data?.id ?? null } }
+    return { status: 200, body: { ok: true, to: to.mail, cc, mailId: data?.id ?? null } }
   } catch (err) {
     return {
       status: 502,

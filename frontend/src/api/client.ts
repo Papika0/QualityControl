@@ -10,18 +10,21 @@
 import {
   STAGE_CATS, TODAY, nextStageStatus, progressFromStages,
   type Apartment, type ArchiveRow, type Defect, type DefectComment,
-  type DefectStatus, type DocRow, type Priority, type ProjectId, type Stage,
+  type DefectStatus, type DocRow, type MailRecipient, type Priority,
+  type ProjectId, type Stage,
   type StageName, type Standard, type Task, type TaskColumn, type TaskComment,
   type UserRow,
 } from '@/data/domain'
 import type { Annotation } from '@/lib/annotate'
+import { normalizeMail } from '@/lib/email'
 import { blobBytes } from '@/lib/image'
 import type { Backend, WriteOp } from './idb'
 import { db, resetDatabase, type StoreName } from './schema'
 import {
   aptKey, defectKey, stageKey,
   type AptRow, type ArchiveDocRow,
-  type DefectCommentRow, type DefectRow, type DocumentRow, type PhotoRow,
+  type DefectCommentRow, type DefectRow, type DocumentRow,
+  type MailRecipientRow, type PhotoRow,
   type StageRow, type StandardRow, type TaskCommentRow, type TaskRow,
   type UserAccountRow,
 } from './seed'
@@ -150,6 +153,8 @@ export interface NewDefectInput {
   cat: string
   /** The ჯგუფი inside `cat`, when the category has any. */
   group?: string
+  /** `Standard.code` the corrective action enforces, when one was picked. */
+  standard?: string
   pri: Priority
   sub: string
   /** QA inspector filing the defect. */
@@ -203,6 +208,7 @@ export const api = {
         id,
         cat: input.cat,
         ...(input.group ? { group: input.group } : {}),
+        ...(input.standard ? { standard: input.standard } : {}),
         apt: input.apt,
         room: input.room,
         pri: input.pri,
@@ -432,6 +438,57 @@ export const api = {
       const next: UserAccountRow = { ...current, active }
       await backend.write([{ store: 'users', put: next }])
       return next
+    },
+  },
+
+  /**
+   * Addresses added by hand, copied on assignment notices alongside the QA
+   * member the defect went to. Nothing here is seeded — every row is one
+   * somebody typed.
+   */
+  recipients: {
+    async list(): Promise<MailRecipient[]> {
+      const backend = await db()
+      return byOrd(await backend.getAll<MailRecipientRow>('recipients'))
+    },
+
+    /** Adding an address the list already holds returns that row untouched. */
+    async add(mail: string, name?: string): Promise<MailRecipient> {
+      const backend = await db()
+      const existing = await backend.getAll<MailRecipientRow>('recipients')
+      const address = normalizeMail(mail)
+      const already = existing.find((r) => r.mail === address)
+      if (already) return already
+
+      const row: MailRecipientRow = {
+        id: newId('RCP'),
+        ord: nextOrd(existing),
+        mail: address,
+        ...(name?.trim() ? { name: name.trim() } : {}),
+      }
+      await backend.write([{ store: 'recipients', put: row }])
+      return row
+    },
+
+    async update(id: string, patch: { mail?: string; name?: string }): Promise<MailRecipient | null> {
+      const backend = await db()
+      const current = await backend.get<MailRecipientRow>('recipients', id)
+      if (!current) return null
+      const { name: previous, ...base } = current
+      const name = (patch.name ?? previous ?? '').trim()
+      const next: MailRecipientRow = {
+        ...base,
+        mail: patch.mail === undefined ? current.mail : normalizeMail(patch.mail),
+        // An emptied name clears the label rather than storing a blank one.
+        ...(name ? { name } : {}),
+      }
+      await backend.write([{ store: 'recipients', put: next }])
+      return next
+    },
+
+    async remove(id: string): Promise<void> {
+      const backend = await db()
+      await backend.write([{ store: 'recipients', del: id }])
     },
   },
 

@@ -9,14 +9,15 @@ import { SEED_VERSION, seedRecords } from './seed'
 
 const DB_NAME = 'qc-platform'
 // v2 added the `photos` store, v3 the `defectComments` store, v4 the `stages`
-// store. Bumping the version runs `onupgradeneeded`, which creates missing
-// stores without touching the rows already there.
-const DB_VERSION = 4
+// store, v5 the `recipients` store. Bumping the version runs
+// `onupgradeneeded`, which creates missing stores without touching the rows
+// already there.
+const DB_VERSION = 5
 
 export type StoreName =
   | 'apartments' | 'defects' | 'photos' | 'stages' | 'tasks' | 'taskComments'
   | 'defectComments' | 'standards'
-  | 'drawings' | 'archive' | 'users'
+  | 'drawings' | 'archive' | 'users' | 'recipients'
   | 'meta'
 
 const SPECS: StoreSpec<StoreName>[] = [
@@ -52,6 +53,9 @@ const SPECS: StoreSpec<StoreName>[] = [
   { name: 'drawings', keyPath: 'code' },
   { name: 'archive', keyPath: 'id' },
   { name: 'users', keyPath: 'mail' },
+  // Manually added mail recipients. Never seeded, and keyed by a generated id
+  // rather than the address itself so editing one stays a single put.
+  { name: 'recipients', keyPath: 'id' },
   { name: 'meta', keyPath: 'key' },
 ]
 

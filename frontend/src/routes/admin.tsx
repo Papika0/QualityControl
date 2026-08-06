@@ -1,11 +1,17 @@
+import { useRef, useState, type RefObject } from 'react'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { RotateCcw, UserPlus } from 'lucide-react'
-import { storageQuery, usersQuery } from '@/api/queries'
-import { useResetDemoData, useSetUserActive } from '@/api/mutations'
+import { Check, Pencil, RotateCcw, UserPlus, X } from 'lucide-react'
+import { recipientsQuery, storageQuery, usersQuery } from '@/api/queries'
+import {
+  useAddRecipient, useRemoveRecipient, useResetDemoData, useSetUserActive,
+  useUpdateRecipient,
+} from '@/api/mutations'
+import { isEmail, normalizeMail } from '@/lib/email'
 import { PageHeader } from '@/components/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 export const Route = createFileRoute('/admin')({
@@ -35,11 +41,175 @@ const PERMS: Record<string, number[]> = {
 const HEAD = ['ადმინი', 'ტექ.დირ', 'პრ.დირ', 'PM', 'QA', 'ტექ.ზედ']
 const ROLE_KEYS = ['admin', 'techdir', 'pmdir', 'pm', 'qa', 'techsup']
 
+/**
+ * The manual half of the mail recipient list. The automatic half — the QA
+ * member a defect is assigned to — is not editable here: those three mailboxes
+ * live server-side in `server/team.ts` and the browser never sees them.
+ */
+function RecipientsCard({ addRef }: { addRef: RefObject<HTMLInputElement | null> }) {
+  const { data: recipients = [] } = useQuery(recipientsQuery())
+  const add = useAddRecipient()
+  const update = useUpdateRecipient()
+  const remove = useRemoveRecipient()
+
+  const [mail, setMail] = useState('')
+  const [name, setName] = useState('')
+  const [error, setError] = useState('')
+  /** Id of the row swapped into its edit form, or null when the list is idle. */
+  const [editing, setEditing] = useState<string | null>(null)
+  const [editMail, setEditMail] = useState('')
+  const [editName, setEditName] = useState('')
+
+  const submitAdd = () => {
+    const address = normalizeMail(mail)
+    if (!address) return
+    if (!isEmail(address)) return setError('არასწორი ელფოსტის მისამართი')
+    if (recipients.some((r) => r.mail === address)) return setError('ეს მისამართი უკვე სიაშია')
+    setError('')
+    add.mutate(
+      { mail: address, name },
+      {
+        onSuccess: () => {
+          setMail('')
+          setName('')
+        },
+        onError: () => setError('ვერ შეინახა — სცადეთ ხელახლა'),
+      },
+    )
+  }
+
+  const submitEdit = (id: string) => {
+    const address = normalizeMail(editMail)
+    if (!isEmail(address)) return setError('არასწორი ელფოსტის მისამართი')
+    if (recipients.some((r) => r.id !== id && r.mail === address)) {
+      return setError('ეს მისამართი უკვე სიაშია')
+    }
+    setError('')
+    update.mutate({ id, mail: address, name: editName }, { onSuccess: () => setEditing(null) })
+  }
+
+  const startEdit = (id: string, currentMail: string, currentName?: string) => {
+    setEditing(id)
+    setEditMail(currentMail)
+    setEditName(currentName ?? '')
+    setError('')
+  }
+
+  return (
+    <Card>
+      <CardHeader><CardTitle>ელფოსტის მიმღებები</CardTitle></CardHeader>
+      <CardContent>
+        <p className="mb-2.5 text-[11px] text-mut">
+          ხარვეზის შეტყობინება ავტომატურად ეგზავნება პასუხისმგებელ QA-ს. აქ დამატებული
+          მისამართები ასლის სახით ერთვის იმავე წერილს.
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          <Input
+            ref={addRef}
+            type="email"
+            inputMode="email"
+            placeholder="mail@example.com"
+            className="min-w-45 flex-[2]"
+            value={mail}
+            onChange={(e) => setMail(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submitAdd()}
+          />
+          <Input
+            placeholder="სახელი (არასავალდებულო)"
+            className="min-w-35 flex-1"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submitAdd()}
+          />
+          <Button className="flex-none" disabled={add.isPending} onClick={submitAdd}>
+            დამატება
+          </Button>
+        </div>
+        {error && <p className="mt-1.5 text-[11px] font-semibold text-warn">{error}</p>}
+
+        <div className="mt-2 space-y-1">
+          {recipients.length === 0 && (
+            <p className="px-2 py-3 text-[11px] text-mut-2">
+              დამატებითი მიმღები არ არის — შეტყობინება მხოლოდ პასუხისმგებელ QA-ს ეგზავნება.
+            </p>
+          )}
+          {recipients.map((r) =>
+            editing === r.id ? (
+              <div key={r.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-soft px-2 py-2">
+                <Input
+                  type="email"
+                  className="min-w-45 flex-[2]"
+                  value={editMail}
+                  onChange={(e) => setEditMail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && submitEdit(r.id)}
+                />
+                <Input
+                  placeholder="სახელი"
+                  className="min-w-35 flex-1"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && submitEdit(r.id)}
+                />
+                <button
+                  type="button"
+                  title="შენახვა"
+                  disabled={update.isPending}
+                  onClick={() => submitEdit(r.id)}
+                  className="shrink-0 cursor-pointer rounded-full p-1.5 text-ok hover:bg-soft-2 disabled:opacity-50"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  title="გაუქმება"
+                  onClick={() => {
+                    setEditing(null)
+                    setError('')
+                  }}
+                  className="shrink-0 cursor-pointer rounded-full p-1.5 text-mut-2 hover:bg-soft-2"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div key={r.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-soft">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-bold">{r.name || r.mail}</div>
+                  {r.name && <div className="truncate text-[11px] text-mut">{r.mail}</div>}
+                </div>
+                <button
+                  type="button"
+                  title="რედაქტირება"
+                  onClick={() => startEdit(r.id, r.mail, r.name)}
+                  className="shrink-0 cursor-pointer rounded-full p-1.5 text-mut-2 hover:bg-soft-2 hover:text-mut-3"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  title="წაშლა"
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(r.id)}
+                  className="shrink-0 cursor-pointer rounded-full p-1.5 text-mut-2 hover:bg-soft-2 hover:text-warn disabled:opacity-50"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ),
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function AdminPage() {
   const { data: users } = useSuspenseQuery(usersQuery())
   const { data: persistent } = useQuery(storageQuery())
   const setActive = useSetUserActive()
   const reset = useResetDemoData()
+  const addRecipientRef = useRef<HTMLInputElement>(null)
 
   return (
     <div>
@@ -60,7 +230,12 @@ function AdminPage() {
               <RotateCcw className="h-4 w-4" />
               {reset.isPending ? 'მიმდინარეობს…' : 'დემო მონაცემების აღდგენა'}
             </Button>
-            <Button>
+            <Button
+              onClick={() => {
+                addRecipientRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+                addRecipientRef.current?.focus()
+              }}
+            >
               <UserPlus className="h-4 w-4" /> მოწვევა ელფოსტით
             </Button>
           </>
@@ -143,6 +318,8 @@ function AdminPage() {
             ))}
           </CardContent>
         </Card>
+
+        <RecipientsCard addRef={addRecipientRef} />
       </div>
     </div>
   )

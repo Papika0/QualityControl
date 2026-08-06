@@ -62,5 +62,8 @@ export const archiveQuery = () =>
 export const usersQuery = () =>
   queryOptions({ queryKey: ['users'], queryFn: () => api.users.list() })
 
+export const recipientsQuery = () =>
+  queryOptions({ queryKey: ['recipients'], queryFn: () => api.recipients.list() })
+
 export const storageQuery = () =>
   queryOptions({ queryKey: ['storage'], queryFn: () => api.storage.isPersistent(), staleTime: Infinity })

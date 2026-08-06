@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Camera, ChevronLeft, ImageIcon, Loader2, Pencil, Upload, Wand2, X } from 'lucide-react'
-import { apartmentsQuery } from '@/api/queries'
-import { useCreateDefect } from '@/api/mutations'
+import { apartmentsQuery, recipientsQuery, standardsQuery } from '@/api/queries'
+import { useAddRecipient, useCreateDefect, useRemoveRecipient } from '@/api/mutations'
 import { DEFECT_DUE_DAYS, addDays } from '@/api/client'
-import { CATS, PRI_LABEL, QA_TEAM, SUBS, TODAY, groupsFor, recoFor, type Defect, type Priority } from '@/data/domain'
+import {
+  CATS, PRI_LABEL, QA_TEAM, SUBS, TODAY, groupsFor, recoFor,
+  type Defect, type MailRecipient, type Priority, type Standard,
+} from '@/data/domain'
 import { useSession } from '@/lib/session'
 import { useToast } from '@/lib/toast'
+import { isEmail, normalizeMail } from '@/lib/email'
 import { sendDefectNotice } from '@/lib/notify'
 import { useBlobUrls } from '@/lib/blob-url'
 import type { Annotation } from '@/lib/annotate'
@@ -19,11 +23,16 @@ import { cn } from '@/lib/utils'
 const LABEL = 'mb-1.25 block text-[10px] font-semibold uppercase tracking-[0.1em] text-mut'
 const CONTROL = 'w-full rounded-lg border border-line-2 bg-card px-2.75 py-2.25 text-[13px]'
 
-// The prototype's room list for a defect — the domain ROOMS plus the corridor,
-// which only ever appears as a defect location, never as a generated room.
-const ROOM_OPTIONS = ['სველი წერტილი', 'სამზარეულო', 'მისაღები', 'საძინებელი', 'ჰოლი', 'დერეფანი']
+// The prototype's room list for a defect — the domain ROOMS plus the corridor
+// and the balcony, which only ever appear as a defect location, never as a
+// generated room. აივანი is also a პრობლემის კატეგორია, but that is the other
+// axis: the category is what went wrong, this is where it was found.
+const ROOM_OPTIONS = ['სველი წერტილი', 'სამზარეულო', 'მისაღები', 'საძინებელი', 'ჰოლი', 'დერეფანი', 'აივანი']
 
 const MAX_PHOTOS = 8
+
+/** Stable empty list — a fresh `[]` each render would rebuild `cc` forever. */
+const NO_RECIPIENTS: MailRecipient[] = []
 
 /** Where the assignment notice goes out. Push + Email are the standing default;
  *  SMS is opt-in because it is billed per message. */
@@ -73,10 +82,16 @@ export function NewDefectDialog({
   const { project, role } = useSession()
   const toast = useToast()
   const { data: apts } = useQuery(apartmentsQuery(project.id))
+  const { data: standards } = useQuery(standardsQuery())
+  const { data: recipients = NO_RECIPIENTS } = useQuery(recipientsQuery())
   const create = useCreateDefect()
+  const addRecipient = useAddRecipient()
+  const removeRecipient = useRemoveRecipient()
   const [cat, setCat] = useState<string>(CATS[0]!)
   // '' is the "ჯგუფები" placeholder — a filing may stop at the category level.
   const [group, setGroup] = useState('')
+  // '' is "no standard cited" — a `Standard.code` otherwise.
+  const [standard, setStandard] = useState('')
   const [floor, setFloor] = useState('12')
   const [apt, setApt] = useState('1204')
   const [room, setRoom] = useState<string>(ROOM_OPTIONS[0]!)
@@ -88,6 +103,10 @@ export function NewDefectDialog({
   const [due, setDue] = useState(addDays(TODAY, DEFECT_DUE_DAYS))
   const [reco, setReco] = useState<string | null>(null)
   const [channels, setChannels] = useState<ChannelId[]>(['push', 'email'])
+  // Ids held *out* of this notice rather than the ones held in: a recipient
+  // added mid-form is then copied by default, which is why it was added.
+  const [excluded, setExcluded] = useState<string[]>([])
+  const [draft, setDraft] = useState('')
   const [photos, setPhotos] = useState<PreparedPhoto[]>([])
   const [preparing, setPreparing] = useState(0)
   const [dropping, setDropping] = useState(false)
@@ -103,8 +122,40 @@ export function NewDefectDialog({
 
   const channelLabels = CHANNELS.filter((c) => channels.includes(c.id)).map((c) => c.label)
 
+  const emailOn = channels.includes('email')
+
   /** The selected member's display name — what the defect record stores. */
   const who = QA_TEAM.find((m) => m.id === whoId)!.name
+
+  const toggleRecipient = (id: string) =>
+    setExcluded((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+
+  /** Addresses copied on this notice — everything saved, less the toggled off. */
+  const cc = recipients.filter((r) => !excluded.includes(r.id)).map((r) => r.mail)
+
+  const addRecipientFromDraft = () => {
+    const mail = normalizeMail(draft)
+    if (!mail) return
+    if (!isEmail(mail)) {
+      toast({ kind: 'warn', title: 'არასწორი ელფოსტა', desc: mail })
+      return
+    }
+    if (recipients.some((r) => r.mail === mail)) {
+      toast({ kind: 'warn', title: 'უკვე სიაშია', desc: mail })
+      setDraft('')
+      return
+    }
+    addRecipient.mutate(
+      { mail },
+      {
+        onSuccess: () => setDraft(''),
+        onError: (err) => {
+          console.error('[qc] recipient save failed', err)
+          toast({ kind: 'warn', title: 'მიმღები ვერ შეინახა', desc: 'სცადეთ ხელახლა' })
+        },
+      },
+    )
+  }
 
   const addFiles = async (files: FileList | File[] | null, source: PhotoSource) => {
     const picked = [...(files ?? [])].filter((f) => f.type.startsWith('image/'))
@@ -179,6 +230,25 @@ export function NewDefectDialog({
 
   const groups = groupsFor(cat)
 
+  /**
+   * The standards catalog, bucketed by its own კატეგორია for the select's
+   * optgroups. That vocabulary is unrelated to PROBLEM_CATS — there is no key
+   * the two share — so the list is never filtered by the defect's category,
+   * only grouped for readability across 28 documents.
+   */
+  const standardGroups = useMemo(() => {
+    const byCat = new Map<string, Standard[]>()
+    for (const s of standards ?? []) {
+      const bucket = byCat.get(s.cat)
+      if (bucket) bucket.push(s)
+      else byCat.set(s.cat, [s])
+    }
+    return [...byCat]
+  }, [standards])
+
+  /** The picked standard, for the label the select is too narrow to show. */
+  const pickedStandard = (standards ?? []).find((s) => s.code === standard)
+
   // The recommendation runs to four or five lines on a phone and changes with
   // the category, so the box grows to its text instead of hiding the tail behind
   // an inner scroll. It never shrinks below four lines — a box that resized on
@@ -222,15 +292,18 @@ export function NewDefectDialog({
       floor,
       room,
       cat,
+      standard: pickedStandard ? `${pickedStandard.code} — ${pickedStandard.title}` : undefined,
       pri,
       sub,
       due: defect.due,
       desc: desc.trim(),
       filedBy: role?.name ?? 'QC Platform',
+      cc,
       photos,
     })
     if (res.ok) {
-      toast({ kind: 'ok', title: 'ელფოსტა გაიგზავნა', desc: `${who} — ${res.to}` })
+      const copies = res.cc?.length ? ` · +${res.cc.length} ასლი` : ''
+      toast({ kind: 'ok', title: 'ელფოსტა გაიგზავნა', desc: `${who} — ${res.to}${copies}` })
     } else {
       console.error('[qc] defect mail failed', res.error)
       toast({ kind: 'warn', title: 'ელფოსტა ვერ გაიგზავნა', desc: res.error ?? 'უცნობი შეცდომა' })
@@ -241,7 +314,12 @@ export function NewDefectDialog({
     if (create.isPending || preparing > 0) return
     create.mutate(
       // A cleared date field falls back to the standard window in the client.
-      { apt, room, cat, group: group || undefined, pri, sub, who, due, desc: desc.trim(), photos },
+      {
+        apt, room, cat,
+        group: group || undefined,
+        standard: standard || undefined,
+        pri, sub, who, due, desc: desc.trim(), photos,
+      },
       {
         onSuccess: (defect) => {
           onCreated?.(defect)
@@ -500,6 +578,113 @@ export function NewDefectDialog({
                       )
                     })}
                   </div>
+                </Field>
+              </div>
+
+              {/* Copies beyond the assigned QA. That one is automatic — every
+                  chip after it is an address somebody typed, kept for reuse.
+                  Toggling only decides who gets *this* notice; the X takes the
+                  address off the saved list for good. */}
+              <div className="mt-3.25">
+                <label className={LABEL}>დამატებითი მიმღებები</label>
+                <div className={cn('flex flex-wrap items-center gap-1.5', !emailOn && 'opacity-45')}>
+                  <span
+                    title="ავტომატური მიმღები — პასუხისმგებელი QA"
+                    className="inline-flex items-center gap-1.25 rounded-full border border-brand-ring bg-brand-soft px-2.75 py-1 text-[10.5px] font-bold text-brand-dark"
+                  >
+                    <Wand2 className="h-2.5 w-2.5 flex-none" />
+                    {who}
+                  </span>
+                  {recipients.map((r) => {
+                    const on = !excluded.includes(r.id)
+                    return (
+                      <span
+                        key={r.id}
+                        className={cn(
+                          'inline-flex max-w-full items-center rounded-full border transition-colors',
+                          on
+                            ? 'border-brand-ring bg-brand-soft text-brand-dark'
+                            : 'border-line-2 bg-card text-mut-2',
+                        )}
+                      >
+                        <button
+                          type="button"
+                          aria-pressed={on}
+                          disabled={!emailOn}
+                          title={on ? 'ამ წერილში მიიღებს ასლს' : 'ამ წერილში ასლს არ მიიღებს'}
+                          onClick={() => toggleRecipient(r.id)}
+                          className="min-w-0 cursor-pointer truncate py-1 pl-2.75 pr-1.5 text-[10.5px] font-semibold disabled:cursor-default"
+                        >
+                          {r.name ? `${r.name} · ${r.mail}` : r.mail}
+                        </button>
+                        <button
+                          type="button"
+                          title="სიიდან წაშლა"
+                          onClick={() => removeRecipient.mutate(r.id)}
+                          className="cursor-pointer rounded-full py-1 pl-0.5 pr-2 opacity-55 hover:opacity-100"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    )
+                  })}
+                </div>
+
+                <div className="mt-1.75 flex gap-2">
+                  <input
+                    type="email"
+                    inputMode="email"
+                    autoComplete="off"
+                    placeholder="mail@example.com"
+                    className={`${CONTROL} flex-1`}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter here must add the address, not submit the filing.
+                      if (e.key !== 'Enter') return
+                      e.preventDefault()
+                      addRecipientFromDraft()
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    className="flex-none"
+                    disabled={addRecipient.isPending}
+                    onClick={addRecipientFromDraft}
+                  >
+                    დამატება
+                  </Button>
+                </div>
+                {!emailOn && (
+                  <p className="mt-1.25 text-[10.5px] text-mut-2">
+                    ასლები მხოლოდ Email არხის ჩართვისას იგზავნება.
+                  </p>
+                )}
+              </div>
+
+              {/* The standard the measure below enforces. Optional, and it does
+                  not rewrite the recommendation — that stays the category's. */}
+              <div className="mt-3.25">
+                <Field label="სტანდარტი">
+                  <select
+                    className={`${CONTROL} cursor-pointer`}
+                    value={standard}
+                    // 28 documents with titles past any width this dialog has —
+                    // hover carries the full one, as it does for the category.
+                    title={pickedStandard ? `${pickedStandard.code} — ${pickedStandard.title}` : undefined}
+                    onChange={(e) => setStandard(e.target.value)}
+                  >
+                    <option value="">სტანდარტი არ არის მითითებული</option>
+                    {standardGroups.map(([groupCat, docs]) => (
+                      <optgroup key={groupCat} label={groupCat}>
+                        {docs.map((s) => (
+                          <option key={s.code} value={s.code}>
+                            {s.code} — {s.title}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
                 </Field>
               </div>
 

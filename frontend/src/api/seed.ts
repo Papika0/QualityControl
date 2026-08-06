@@ -16,6 +16,7 @@ import {
   progressFromStages, recoFor,
   type Apartment, type ArchiveRow, type Defect,
   type DefectComment, type DefectEvent, type DefectStatus, type DocRow,
+  type MailRecipient,
   type Priority, type ProjectId, type Stage, type StageStatus, type Standard,
   type Task, type TaskComment, type UserRow,
 } from '@/data/domain'
@@ -57,6 +58,9 @@ export type UserAccountRow = Ordered<UserRow>
  */
 export type TaskCommentRow = Ordered<TaskComment>
 export type DefectCommentRow = Ordered<DefectComment>
+
+/** A hand-added mail recipient. Never seeded, for the same reason. */
+export type MailRecipientRow = Ordered<MailRecipient>
 
 /**
  * A field photo. Never seeded — the demo dataset has no real imagery, so these

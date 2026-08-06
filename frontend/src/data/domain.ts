@@ -63,6 +63,12 @@ export interface Defect {
    * and on rows written before the two-level taxonomy existed.
    */
   group?: string
+  /**
+   * The `Standard.code` this defect is filed against — the document the
+   * corrective action enforces. Optional: not every filing cites one, and no
+   * row written before the field existed carries it.
+   */
+  standard?: string
   apt: string
   room: string
   pri: Priority
@@ -172,6 +178,19 @@ export interface UserRow {
   role: string
   scope: string
   active: boolean
+}
+
+/**
+ * An address somebody typed in, copied on every notice they are picked for.
+ * This is the manual half of the recipient list — the automatic half is the
+ * `QA_TEAM` member a defect is assigned to, whose mailbox stays server-side.
+ */
+export interface MailRecipient {
+  id: string
+  /** Lowercased and trimmed on the way in — see `normalizeMail`. */
+  mail: string
+  /** Optional label, so a shared inbox can read as more than an address. */
+  name?: string
 }
 
 export interface TaskComment {
