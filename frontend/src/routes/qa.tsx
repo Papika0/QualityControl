@@ -151,21 +151,23 @@ function QaPage() {
         { label: 'დალაგება', value: SORT_LABEL[sort] },
       ],
       columns: [
-        { header: 'ID', width: '9%', mono: true, cell: (d) => d.id },
-        { header: 'კატეგორია', width: '9%', cell: (d) => d.cat },
+        { header: 'ID', width: '8%', mono: true, cell: (d) => d.id },
+        // Category and ჯგუფი share a column — apart they would each be too
+        // narrow to read, and the pair is what identifies the work item.
+        { header: 'კატეგორია', width: '20%', cell: (d) => (d.group ? `${d.cat} — ${d.group}` : d.cat) },
         { header: 'ბინა', width: '5%', cell: (d) => d.apt },
-        { header: 'ოთახი', width: '10%', cell: (d) => d.room },
+        { header: 'ოთახი', width: '9%', cell: (d) => d.room },
         { header: 'პრიორიტეტი', width: '7%', cell: (d) => PRI_LABEL[d.pri] },
         { header: 'სტატუსი', width: '8%', cell: (d) => d.st },
-        { header: 'შემსრულებელი', width: '12%', cell: (d) => d.sub },
-        { header: 'პასუხისმგებელი', width: '10%', cell: (d) => d.who },
+        { header: 'შემსრულებელი', width: '10%', cell: (d) => d.sub },
+        { header: 'პასუხისმგებელი', width: '9%', cell: (d) => d.who },
         {
           header: 'ვადა',
           width: '8%',
           mono: true,
           cell: (d) => (d.due < TODAY && d.st !== 'დახურული' ? `${d.due} (!)` : d.due),
         },
-        { header: 'გამოსასწორებელი ღონისძიება', width: '22%', cell: (d) => d.desc },
+        { header: 'გამოსასწორებელი ღონისძიება', width: '16%', cell: (d) => d.desc },
       ],
       rows,
       note: `${project.name} · ხარისხის კონტროლის პლატფორმა`,
@@ -303,13 +305,13 @@ function QaPage() {
         // scroller so the labels stay over their columns; only the inner box
         // scrolls vertically, which keeps it the virtualizer's scroll element.
         <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
-          <div className="flex h-full min-w-240 flex-col">
+          <div className="flex h-full min-w-275 flex-col">
             {/* Column labels. Widths mirror the card cells below, and the card's
                 1px border + px-3.75 padding lines up with this row's px-4. */}
             <div className="mb-2 flex flex-none items-center gap-3 border-b border-line px-4 pb-2.5 text-[12.5px] font-medium text-mut-3">
               <span className="w-24 flex-none">პრიორიტეტი</span>
               <span className="w-24 flex-none">ID</span>
-              <span className="w-25 flex-none">კატეგორია</span>
+              <span className="w-60 flex-none">კატეგორია · ჯგუფი</span>
               <span className="w-14 flex-none">ბინა</span>
               <span className="w-26 flex-none">ოთახი</span>
               <span className="min-w-32.5 flex-1">შემსრულებელი · პასუხისმგებელი</span>
@@ -346,7 +348,16 @@ function QaPage() {
                         </span>
                       </span>
                       <span className="w-24 flex-none font-mono text-[11.5px] text-mut">{d.id}</span>
-                      <span className="w-25 flex-none truncate text-[13px] font-bold">{d.cat}</span>
+                      {/* Category over ჯგუფი: the category alone repeats across
+                          dozens of rows, and the ჯგუფი is what tells them apart.
+                          Both are far too long to sit side by side. */}
+                      <span
+                        className="flex w-60 min-w-0 flex-none flex-col justify-center"
+                        title={d.group ? `${d.cat} — ${d.group}` : d.cat}
+                      >
+                        <span className="truncate text-[13px] font-bold">{d.cat}</span>
+                        {d.group && <span className="truncate text-[11px] text-mut">{d.group}</span>}
+                      </span>
                       <span className="w-14 flex-none text-xs text-mut-3">{d.apt}</span>
                       <span className="w-26 flex-none truncate text-xs text-mut">{d.room}</span>
                       <span className="min-w-32.5 flex-1 truncate text-xs text-mut-3">

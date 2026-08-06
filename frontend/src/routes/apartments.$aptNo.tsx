@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { Camera, FileDown } from 'lucide-react'
-import { apartmentQuery, aptDefectsQuery } from '@/api/queries'
-import { PEOPLE, STAGES } from '@/data/domain'
+import { Camera, FileDown, Lock } from 'lucide-react'
+import { apartmentQuery, aptDefectsQuery, aptStagesQuery } from '@/api/queries'
+import { stageBlockers } from '@/api/client'
+import { canTrackStages, stageWeight, type Stage } from '@/data/domain'
+import { StageDialog } from '@/components/stage-dialog'
 import { useSession } from '@/lib/session'
 import { BackLink, PageHeader } from '@/components/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,7 +15,6 @@ import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DefectDialog } from '@/components/defect-dialog'
-import { hash01 } from '@/lib/utils'
 
 export const Route = createFileRoute('/apartments/$aptNo')({
   component: ApartmentPage,
@@ -24,13 +25,20 @@ function ApartmentPage() {
   const { project, role } = useSession()
   const { data: apt } = useSuspenseQuery(apartmentQuery(project.id, aptNo))
   const { data: defects } = useSuspenseQuery(aptDefectsQuery(project.id, aptNo))
+  const { data: stages } = useSuspenseQuery(aptStagesQuery(project.id, aptNo))
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [stageName, setStageName] = useState<string | null>(null)
 
   const isOwner = role?.id === 'owner'
+  const canTrack = canTrackStages(role?.id)
   const A = apt ?? { no: aptNo, prog: 72, defects: 2, area: 78, rooms: 3, floor: 12, sold: true, late: false }
   const open = defects.filter((d) => d.st !== 'დახურული').length
-  const doneN = Math.round((A.prog / 100) * STAGES.length)
+  const doneN = stages.filter((s) => s.st === 'Completed').length
   const selected = defects.find((d) => d.id === selectedId) ?? null
+  // Track the name, not the row: after a write the list refetches and the open
+  // dialog has to show the new status, not the copy it was opened with.
+  const stage = stages.find((s) => s.stage === stageName) ?? null
+  const setStage = (s: Stage) => setStageName(s.stage)
 
   const first = defects[0]
   const audit = [
@@ -167,6 +175,21 @@ function ApartmentPage() {
         <TabsContent value="prog">
           <Card>
             <CardContent className="pt-4">
+              <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-mut">
+                <span className="font-bold text-ink">
+                  {doneN} / {stages.length} ეტაპი მიღებულია
+                </span>
+                <span>· ბინის პროგრესი {A.prog}%</span>
+                {canTrack ? (
+                  <span className="ml-auto text-[11px] text-mut-2">
+                    აირჩიეთ ეტაპი სტატუსის შესაცვლელად
+                  </span>
+                ) : (
+                  <span className="ml-auto text-[11px] text-mut-2">
+                    სტატუსს ცვლის მხოლოდ ზედამხედველი (QA)
+                  </span>
+                )}
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -174,29 +197,41 @@ function ApartmentPage() {
                     <TableHead>სტატუსი</TableHead>
                     <TableHead className="w-56">პროგრესი</TableHead>
                     <TableHead>შემსრულებელი</TableHead>
+                    <TableHead>ღია ხარვეზი</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {STAGES.map((s, i) => {
-                    const st =
-                      i < doneN ? 'Completed' : i === doneN ? 'In Progress' : hash01(aptNo + s) > 0.9 ? 'Delayed' : 'Not Started'
-                    const pct = i < doneN ? 100 : i === doneN ? Math.round(hash01(aptNo + s) * 70 + 15) : 0
+                  {stages.map((s) => {
+                    const pct = Math.round(stageWeight(s.st) * 100)
+                    const blockers = stageBlockers(s.stage, defects)
                     return (
-                      <TableRow key={s}>
-                        <TableCell className="font-semibold">{s}</TableCell>
-                        <TableCell><StatusBadge status={st} /></TableCell>
+                      <TableRow
+                        key={s.stage}
+                        onClick={() => setStage(s)}
+                        className="cursor-pointer"
+                      >
+                        <TableCell className="font-semibold">{s.stage}</TableCell>
+                        <TableCell><StatusBadge status={s.st} /></TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Progress
                               value={pct}
-                              barColor={st === 'Completed' ? 'var(--color-tone-ok-solid)' : st === 'Delayed' ? 'var(--color-tone-warn-solid)' : 'var(--color-tone-info-solid)'}
+                              barColor={s.st === 'Completed' ? 'var(--color-tone-ok-solid)' : s.st === 'Delayed' ? 'var(--color-tone-warn-solid)' : 'var(--color-tone-info-solid)'}
                               className="flex-1"
                             />
                             <span className="w-9 text-right text-xs text-mut">{pct}%</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-mut-3">
-                          {pct > 0 ? PEOPLE[Math.floor(hash01(aptNo + s + 'w') * 7)] : '—'}
+                        <TableCell className="text-mut-3">{s.who || '—'}</TableCell>
+                        <TableCell>
+                          {blockers.length > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-tone-open-fg">
+                              <Lock className="h-3 w-3" />
+                              {blockers.length}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-mut-2">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     )
@@ -221,7 +256,7 @@ function ApartmentPage() {
                     onClick={() => setSelectedId(d.id)}
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-bold">{d.id} · {d.cat}</div>
+                      <div className="truncate text-sm font-bold">{d.id} · {d.group ?? d.cat}</div>
                       <div className="truncate text-xs text-mut">{d.room} · {d.desc}</div>
                     </div>
                     <StatusBadge status={d.st} />
@@ -306,6 +341,14 @@ function ApartmentPage() {
       </Tabs>
 
       <DefectDialog defect={selected} onClose={() => setSelectedId(null)} />
+      {stage && (
+        <StageDialog
+          stage={stage}
+          defects={defects}
+          canTrack={canTrack}
+          onClose={() => setStageName(null)}
+        />
+      )}
     </div>
   )
 }

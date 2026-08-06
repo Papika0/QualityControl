@@ -44,11 +44,12 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
       }))
 
     const defHits: Hit[] = (defects ?? [])
-      .filter((d) => match(d.id, d.cat, d.apt, d.room, d.sub))
+      // The ჯგუფი is the specific work item, so it is what an inspector types.
+      .filter((d) => match(d.id, d.cat, d.group ?? '', d.apt, d.room, d.sub))
       .slice(0, PER_GROUP)
       .map((d) => ({
         key: d.id,
-        title: `${d.cat} · ${d.room} · ბინა ${d.apt}`,
+        title: `${d.group ?? d.cat} · ${d.room} · ბინა ${d.apt}`,
         meta: d.st,
         go: () => {
           onClose()

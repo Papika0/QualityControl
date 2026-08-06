@@ -12,19 +12,25 @@
 import { hash01 } from '@/lib/utils'
 import type { Annotation } from '@/lib/annotate'
 import {
-  CATS, DEFECT_FLOW, PEOPLE, PROJECTS, RECO, ROOMS, SUBS, TASK_TYPES,
+  DEFECT_FLOW, PEOPLE, PROBLEM_CATS, PROJECTS, ROOMS, STAGES, SUBS, TASK_TYPES,
+  progressFromStages, recoFor,
   type Apartment, type ArchiveRow, type AuditRow, type ContractRow, type Defect,
   type DefectComment, type DefectEvent, type DefectStatus, type DocRow,
-  type Priority, type ProjectId, type Standard, type Task, type TaskComment,
-  type UserRow,
+  type Priority, type ProjectId, type Stage, type StageStatus, type Standard,
+  type Task, type TaskComment, type UserRow,
 } from '@/data/domain'
+import { STANDARD_INDEX } from '@/data/standards-index'
 import type { WriteOp } from './idb'
 import type { StoreName } from './schema'
 
 // v2 dropped the pre-written task comments — comments are hand-authored only.
 // v3 gave every seeded defect its own status history instead of one shared set
 // of dates hardcoded in the dialog.
-export const SEED_VERSION = 3
+// v4 added the per-apartment stage rows that `prog` and `late` now read from.
+// v5 moved defects onto the site's own two-level taxonomy — a Georgian
+// პრობლემის კატეგორია plus a ჯგუფი — replacing the flat English category list.
+// v6 replaced the eight placeholder standards with the 28 real TEC documents.
+export const SEED_VERSION = 6
 
 /**
  * Stored rows carry an `ord` so lists come back in generated order rather than
@@ -34,6 +40,7 @@ export const SEED_VERSION = 3
 export type Ordered<T> = T & { ord: number }
 export type AptRow = Ordered<Apartment> & { key: string; proj: ProjectId }
 export type DefectRow = Ordered<Defect> & { key: string; proj: ProjectId }
+export type StageRow = Ordered<Stage> & { key: string; proj: ProjectId }
 export type TaskRow = Ordered<Task>
 export type StandardRow = Ordered<Standard>
 export type DocumentRow = Ordered<DocRow>
@@ -84,23 +91,34 @@ export interface PhotoRow {
 
 export const aptKey = (proj: ProjectId, no: string) => `${proj}:${no}`
 export const defectKey = (proj: ProjectId, id: string) => `${proj}:${id}`
+export const stageKey = (proj: ProjectId, apt: string, stage: string) => `${proj}:${apt}:${stage}`
 
 // ---------------------------------------------------------------- apartments
 
-function generateProject(proj: ProjectId): { apartments: AptRow[]; defects: DefectRow[] } {
+function generateProject(
+  proj: ProjectId,
+): { apartments: AptRow[]; defects: DefectRow[]; stages: StageRow[] } {
   const top = proj === 'NTB' ? 21 : 16
   const perFloor = (f: number) => (proj === 'NTB' ? (f === 14 ? 18 : 17) : 8)
   const apartments: AptRow[] = []
   const defects: DefectRow[] = []
+  const stages: StageRow[] = []
 
   for (let f = top; f >= 1; f--) {
     for (let i = 1; i <= perFloor(f); i++) {
       const no = `${f}${String(i).padStart(2, '0')}`
       const k = proj + no
-      const prog = Math.max(0, Math.min(100, Math.round(104 - (f - 1) * (top === 21 ? 4.6 : 5.8) + hash01(k) * 16)))
-      const count = prog > 96 || prog < 8 ? 0 : Math.floor(hash01(k + 'd') * 4.4)
+      // How far up the building this unit is — the shape of the original demo
+      // curve. It seeds the stage statuses; the stored `prog` is then read back
+      // off those stages, so the two can never drift apart.
+      const reach = Math.max(0, Math.min(100, Math.round(104 - (f - 1) * (top === 21 ? 4.6 : 5.8) + hash01(k) * 16)))
+      const count = reach > 96 || reach < 8 ? 0 : Math.floor(hash01(k + 'd') * 4.4)
       const rows = generateDefects(proj, no, count, defects.length)
       defects.push(...rows)
+
+      const stageRows = generateStages(proj, no, reach, stages.length)
+      stages.push(...stageRows)
+
       apartments.push({
         key: aptKey(proj, no),
         proj,
@@ -110,15 +128,46 @@ function generateProject(proj: ProjectId): { apartments: AptRow[]; defects: Defe
         // Open defects, kept in sync by the client on every defect mutation —
         // closing the last one clears the apartment's marker on the map.
         defects: rows.filter((d) => d.st !== 'დახურული').length,
-        prog,
+        prog: progressFromStages(stageRows.map((s) => s.st)),
         sold: hash01(k + 's') > 0.55,
-        late: hash01(k + 'l') > 0.87 && prog < 95 && prog > 10,
+        late: stageRows.some((s) => s.st === 'Delayed'),
         area: 44 + Math.round(hash01(k + 'a') * 52),
         rooms: 1 + Math.round(hash01(k + 'r') * 2),
       })
     }
   }
-  return { apartments, defects }
+  return { apartments, defects, stages }
+}
+
+/**
+ * Stage rows for one apartment. `reach` places the frontier: everything below
+ * it is accepted, the stage at it is under way, and the one after it has
+ * occasionally stalled.
+ */
+function generateStages(proj: ProjectId, no: string, reach: number, baseOrd: number): StageRow[] {
+  const frontier = Math.round((reach / 100) * STAGES.length)
+  return STAGES.map((stage, i) => {
+    const k = proj + no + stage
+    let st: StageStatus
+    if (i < frontier) st = 'Completed'
+    else if (i === frontier) st = 'In Progress'
+    else if (i === frontier + 1 && hash01(k + 'x') > 0.85) st = 'Delayed'
+    else st = 'Not Started'
+
+    const moved = st !== 'Not Started'
+    return {
+      key: stageKey(proj, no, stage),
+      proj,
+      ord: baseOrd + i,
+      apt: no,
+      stage,
+      st,
+      who: moved ? PEOPLE[Math.floor(hash01(k + 'w') * PEOPLE.length)]! : '',
+      at: moved
+        ? `2026-${String(4 + Math.floor(hash01(k + 'm') * 4)).padStart(2, '0')}-${String(1 + Math.floor(hash01(k + 'd') * 27)).padStart(2, '0')}`
+        : '',
+    }
+  })
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
@@ -157,7 +206,11 @@ function generateDefects(proj: ProjectId, no: string, count: number, baseOrd: nu
   const out: DefectRow[] = []
   for (let i = 0; i < count; i++) {
     const k = proj + no + 'q' + i
-    const cat = CATS[Math.floor(hash01(k + 'c') * CATS.length)]!
+    const entry = PROBLEM_CATS[Math.floor(hash01(k + 'c') * PROBLEM_CATS.length)]!
+    const cat = entry.cat
+    // Categories without a second level file against the bare category.
+    const groups: readonly string[] = entry.groups
+    const group = groups.length ? groups[Math.floor(hash01(k + 'g') * groups.length)] : undefined
     const id = `QA-${no}-${String(17 + i * 4).padStart(3, '0')}`
     const row: DefectRow = {
       key: defectKey(proj, id),
@@ -165,6 +218,7 @@ function generateDefects(proj: ProjectId, no: string, count: number, baseOrd: nu
       ord: baseOrd + i,
       id,
       cat,
+      ...(group ? { group } : {}),
       apt: no,
       room: ROOMS[Math.floor(hash01(k + 'r') * 5)]!,
       pri: (['high', 'med', 'low'] as Priority[])[Math.floor(hash01(k + 'p') * 3)]!,
@@ -174,7 +228,7 @@ function generateDefects(proj: ProjectId, no: string, count: number, baseOrd: nu
       due: `2026-0${7 + Math.floor(hash01(k + 'd') * 2)}-${String(4 + Math.floor(hash01(k + 'e') * 22)).padStart(2, '0')}`,
       // The corrective measure the filing form would have proposed for this
       // category — the same text a real filing starts from.
-      desc: RECO[cat] ?? RECO.Other!,
+      desc: recoFor(cat),
     }
     out.push({ ...row, history: generateHistory(k, row) })
   }
@@ -194,16 +248,10 @@ const TASKS: Task[] = [
   { id: 'T-2107', title: 'MEP — დაქსელილი წყლის მილების ტესტირების ჩაბარება', loc: 'მე-8 სართ.', who: 'ი. მაისურაძე', due: '30 ივლ', col: 'done', pri: 'med', floor: 8, type: 'MEP ტესტირება' },
 ]
 
-const STANDARDS: Standard[] = [
-  { code: 'STD-01', title: 'მონოლითური ბეტონის მიღების სტანდარტი', cat: 'კონსტრუქცია', files: ['PDF', 'DWG'], rev: 'v3', updated: '12 მაი 2026' },
-  { code: 'STD-02', title: 'ბლოკის წყობის ნორმები — ვერტიკალობა და შვები', cat: 'წყობა', files: ['PDF'], rev: 'v2', updated: '03 ივნ 2026' },
-  { code: 'STD-03', title: 'ელექტროკაბელის დაქსელვისა და კოლოფების სტანდარტი', cat: 'ელექტროობა', files: ['PDF', 'DOCX'], rev: 'v4', updated: '28 ივნ 2026' },
-  { code: 'STD-04', title: 'მილების გადმოსვლა გადახურვიდან — 10 სმ ნორმა (ჰაერსატარი, კანალიზაცია, წყალი)', cat: 'MEP / სანტექნიკა', files: ['PDF', 'DWG'], rev: 'v1', updated: '15 ივლ 2026' },
-  { code: 'STD-05', title: 'ჰიდროიზოლაციის მოწყობა სველ წერტილებში', cat: 'MEP / სანტექნიკა', files: ['PDF'], rev: 'v3', updated: '20 აპრ 2026' },
-  { code: 'STD-06', title: 'კერამოგრანიტის მოპირკეთების სტანდარტი', cat: 'მოპირკეთება', files: ['PDF', 'DOCX'], rev: 'v2', updated: '07 ივლ 2026' },
-  { code: 'STD-07', title: 'ვენტილირებადი ფასადის მონტაჟის ნორმები', cat: 'ფასადი', files: ['PDF', 'DWG', 'DOCX'], rev: 'v1', updated: '30 ივნ 2026' },
-  { code: 'STD-08', title: 'ლიფტის შახტისა და კარებების მონტაჟის ნორმები', cat: 'მონტაჟი', files: ['PDF'], rev: 'v1', updated: '22 ივლ 2026' },
-]
+// The card list for the real TEC documents. Only what the card shows is seeded;
+// the body text lives in `standards-content` and is read straight from there by
+// the document page, so it never rides along in the initial bundle.
+const STANDARDS: Standard[] = STANDARD_INDEX
 
 const DRAWINGS: DocRow[] = [
   { code: 'AR-101', name: 'არქიტექტურა — გეგმები, კორპუსი A', meta: 'DWG + PDF · 214 ფურც.', rev: 'rev. D', st: 'დამტკიცებული' },
@@ -273,15 +321,18 @@ const puts = (store: StoreName, rows: unknown[]): WriteOp<StoreName>[] =>
 export function seedRecords(): WriteOp<StoreName>[] {
   const apartments: AptRow[] = []
   const defects: DefectRow[] = []
+  const stages: StageRow[] = []
   for (const p of PROJECTS) {
     const generated = generateProject(p.id)
     apartments.push(...generated.apartments)
     defects.push(...generated.defects)
+    stages.push(...generated.stages)
   }
 
   return [
     ...puts('apartments', apartments),
     ...puts('defects', defects),
+    ...puts('stages', stages),
     ...puts('tasks', withOrd(TASKS)),
     ...puts('standards', withOrd(STANDARDS)),
     ...puts('drawings', withOrd(DRAWINGS)),

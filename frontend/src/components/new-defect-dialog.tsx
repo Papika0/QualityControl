@@ -4,7 +4,7 @@ import { Camera, ChevronLeft, ImageIcon, Loader2, Pencil, Upload, Wand2, X } fro
 import { apartmentsQuery } from '@/api/queries'
 import { useCreateDefect } from '@/api/mutations'
 import { DEFECT_DUE_DAYS, addDays } from '@/api/client'
-import { CATS, PEOPLE, PRI_LABEL, RECO, SUBS, TODAY, type Defect, type Priority } from '@/data/domain'
+import { CATS, PEOPLE, PRI_LABEL, SUBS, TODAY, groupsFor, recoFor, type Defect, type Priority } from '@/data/domain'
 import { useSession } from '@/lib/session'
 import { useToast } from '@/lib/toast'
 import { useBlobUrls } from '@/lib/blob-url'
@@ -51,9 +51,9 @@ function useHasCamera(): boolean {
   return coarse
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div>
+    <div className={className}>
       <label className={LABEL}>{label}</label>
       {children}
     </div>
@@ -73,7 +73,9 @@ export function NewDefectDialog({
   const toast = useToast()
   const { data: apts } = useQuery(apartmentsQuery(project.id))
   const create = useCreateDefect()
-  const [cat, setCat] = useState<string>('Tiles')
+  const [cat, setCat] = useState<string>(CATS[0]!)
+  // '' is the "ჯგუფები" placeholder — a filing may stop at the category level.
+  const [group, setGroup] = useState('')
   const [floor, setFloor] = useState('12')
   const [apt, setApt] = useState('1204')
   const [room, setRoom] = useState<string>(ROOM_OPTIONS[0]!)
@@ -167,7 +169,9 @@ export function NewDefectDialog({
     [apts, floor],
   )
 
-  const desc = reco ?? RECO[cat] ?? RECO.Other!
+  const desc = reco ?? recoFor(cat)
+
+  const groups = groupsFor(cat)
 
   // The recommendation runs to four or five lines on a phone and changes with
   // the category, so the box grows to its text instead of hiding the tail behind
@@ -202,7 +206,7 @@ export function NewDefectDialog({
     if (create.isPending || preparing > 0) return
     create.mutate(
       // A cleared date field falls back to the standard window in the client.
-      { apt, room, cat, pri, sub, who, due, desc: desc.trim(), photos },
+      { apt, room, cat, group: group || undefined, pri, sub, who, due, desc: desc.trim(), photos },
       {
         onSuccess: (defect) => {
           onCreated?.(defect)
@@ -325,13 +329,27 @@ export function NewDefectDialog({
                     ))}
                   </select>
                 </Field>
+              </div>
 
-                <Field label="კატეგორია">
+              {/* The taxonomy pair gets a row of its own, split in half. Inside
+                  the auto-fit grid above, these two are wider than a 180px column
+                  and a full-width ჯგუფები forced a row break that stranded the
+                  category beside two empty columns. Half is the widest the
+                  category ever needs — the longest ჯგუფი label is past any width
+                  this dialog can offer, so the select's title carries the rest. */}
+              <div className="mt-3.25 grid gap-3.25 sm:grid-cols-2">
+                <Field label="პრობლემის კატეგორია" className="min-w-0">
                   <select
                     className={`${CONTROL} cursor-pointer`}
                     value={cat}
+                    // The longest category clears the control by two pixels — a
+                    // hair's breadth in another font, so hover carries it too.
+                    title={cat}
                     onChange={(e) => {
                       setCat(e.target.value)
+                      // The groups belong to the old category — keeping one would
+                      // file the defect against a work item in a different trade.
+                      setGroup('')
                       setReco(null)
                     }}
                   >
@@ -343,6 +361,29 @@ export function NewDefectDialog({
                   </select>
                 </Field>
 
+                {/* Only the categories with a second level get this field —
+                    პარკინგი, აივანი and the rest carry no ჯგუფები at all, and an
+                    empty select reads as a broken one. */}
+                {groups.length > 0 && (
+                  <Field label="ჯგუფები" className="min-w-0">
+                    <select
+                      className={`${CONTROL} cursor-pointer`}
+                      value={group}
+                      title={group || undefined}
+                      onChange={(e) => setGroup(e.target.value)}
+                    >
+                      <option value="">ჯგუფები</option>
+                      {groups.map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+              </div>
+
+              <div className="mt-3.25 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] [&>*]:min-w-0 gap-3.25">
                 <Field label="პრიორიტეტი">
                   <select
                     className={`${CONTROL} cursor-pointer`}
