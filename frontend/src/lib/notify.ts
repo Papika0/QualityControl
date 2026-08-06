@@ -1,5 +1,6 @@
-// Client half of the assignment email. Posts to /api/notify-defect, which is
-// served by the Vite plugin in `server/plugin.ts` — the Resend key lives there,
+// Client half of the assignment email. Posts to /api/notify-defect — served by
+// the Vite plugin in `server/plugin.ts` in development and by the serverless
+// function in `api/notify-defect.ts` in production. The Resend key lives there,
 // never here.
 //
 // Sending is deliberately not part of the defect mutation: the record is on
