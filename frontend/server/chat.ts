@@ -224,6 +224,12 @@ export async function handleChat(raw: unknown): Promise<ChatResult> {
   type Payload = {
     choices?: { message?: ChatMessage; finish_reason?: string }[]
     error?: { message?: string; param?: string }
+    usage?: {
+      prompt_tokens?: number
+      completion_tokens?: number
+      prompt_tokens_details?: { cached_tokens?: number }
+      completion_tokens_details?: { reasoning_tokens?: number }
+    }
   } | null
 
   try {
@@ -238,6 +244,25 @@ export async function handleChat(raw: unknown): Promise<ChatResult> {
       console.warn('[qc/chat] tuning rejected, retrying without it:', payload?.error?.message)
       res = await ask(core)
       payload = (await res.json().catch(() => null)) as Payload
+    }
+
+    // What the turn cost, on one line. The endpoint is unauthenticated, so this
+    // is the only place the spend is visible before the invoice — and a
+    // question costs two hops (ask → tool_calls, results → answer), each one
+    // re-sending the whole brief and tool catalogue.
+    const u = payload?.usage
+    if (u) {
+      const reasoned = u.completion_tokens_details?.reasoning_tokens ?? 0
+      // The brief and the tool catalogue are byte-identical on every hop, which
+      // is what makes them cacheable — worth seeing, because they are most of
+      // the input and the cached half is billed at a fraction.
+      const cached = u.prompt_tokens_details?.cached_tokens ?? 0
+      console.info(
+        `[qc/chat] ${model} in=${u.prompt_tokens ?? 0}` +
+          (cached ? ` (cached ${cached})` : '') +
+          ` out=${u.completion_tokens ?? 0}` +
+          (reasoned ? ` (reasoning ${reasoned})` : ''),
+      )
     }
 
     // A refusal can arrive in `error` with a 200 on the wire, the same way
