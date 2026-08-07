@@ -200,6 +200,7 @@ function TasksPage() {
           at tablet widths, which reads as a second, unrelated board. Columns
           snap on a phone and only stop scrolling once all five fit at `xl`. */}
       <div
+        data-testid="task-board"
         className={cn(
           'no-scrollbar -mx-[clamp(14px,2.6vw,26px)] flex snap-x gap-3 overflow-x-auto px-[clamp(14px,2.6vw,26px)] py-1 xl:mx-0 xl:px-0',
           filtered.length === 0 && 'hidden',
@@ -211,6 +212,8 @@ function TasksPage() {
           return (
             <div
               key={col}
+              data-testid="task-column"
+              data-col={col}
               className="w-[76vw] max-w-72 flex-none snap-start rounded-xl bg-soft p-2.5 sm:w-52 xl:w-auto xl:min-w-0 xl:max-w-none xl:flex-1"
             >
               <div className="mb-2 flex items-center gap-2 px-1">
@@ -250,7 +253,7 @@ function TaskCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
   const total = task.checklist.length
   const done = task.checklist.filter((i) => i.done).length
   return (
-    <Card className="cursor-pointer p-3 hover:shadow-md" onClick={onOpen}>
+    <Card data-testid="task-card" data-id={task.id} className="cursor-pointer p-3 hover:shadow-md" onClick={onOpen}>
       <div className="flex items-center gap-1.5 text-[10px] font-bold text-mut-2">
         <span className="h-1.5 w-1.5 flex-none rounded-full" style={{ backgroundColor: PRI_DOT[task.pri] }} />
         {task.id}

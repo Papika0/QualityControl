@@ -35,7 +35,10 @@
       "Bash(mkdir -p /private/tmp/claude-502/-Users-danielpapismedovi-Documents-Code-QualityControl/23b1f31a-64bf-4c45-9004-0a724ac70c22/scratchpad/e2e)",
       "Bash(npm init *)",
       "Bash(npm i *)",
-      "Bash(npx playwright *)"
+      "Bash(npx playwright *)",
+      "Bash(python3 -)",
+      "Bash(cp __TRACKED_VAR__/e2e/tasks.mjs frontend/e2e/tasks.mjs)",
+      "Bash(cp __TRACKED_VAR__/drive-tasks.ts frontend/e2e/api.ts)"
     ]
   }
 }

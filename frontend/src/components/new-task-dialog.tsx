@@ -67,7 +67,12 @@ export function NewTaskDialog({
   const [title, setTitle] = useState('')
   const [desc, setDesc] = useState('')
   const [pri, setPri] = useState<Priority>(parent?.pri ?? 'med')
-  const [col, setCol] = useState<TaskColumn>(cols[0] ?? 'new')
+  // Ready-to-work by default whenever the actor is allowed it. A manager who
+  // can file both was landing on `უფროსის მოთხოვნა` — a request addressed to
+  // themselves, with the assignee picker hidden behind it.
+  const [col, setCol] = useState<TaskColumn>(
+    cols.includes('new') ? 'new' : (cols[0] ?? 'new'),
+  )
   const [track, setTrack] = useState<TaskTrack>(tracks[0] ?? 'main')
   const [floors, setFloors] = useState<number[]>(parent?.floors ?? [])
   const [aptNos, setAptNos] = useState<string[]>(parent?.apts ?? [])

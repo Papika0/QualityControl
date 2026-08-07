@@ -46,8 +46,11 @@ export function Topbar() {
         </div>
         <Select value={project.id} onValueChange={(v) => setProject(v as ProjectId)}>
           {/* Narrower on a phone to pay for the mark; the trigger already
-              truncates, and the full name is there once the list opens. */}
-          <SelectTrigger className="w-40 nav:w-52">
+              truncates, and the full name is there once the list opens.
+              `min-w-0` is load-bearing: without it the trigger's min-content
+              floor is the whole project name, so on a narrow phone it refuses
+              to shrink, overflows this row and renders on top of the icons. */}
+          <SelectTrigger className="w-40 min-w-0 nav:w-52">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

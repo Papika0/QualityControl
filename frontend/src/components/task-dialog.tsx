@@ -220,7 +220,7 @@ export function TaskDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-225">
+      <DialogContent data-testid="task-dialog" className="max-w-225">
         <DialogHeader>
           <div className="flex flex-wrap items-center gap-2 pr-8">
             <DialogTitle className="font-mono">{task.id}</DialogTitle>
@@ -242,8 +242,8 @@ export function TaskDialog({
         {/* `min-w-[min(320px,100%)]`, not `min-w-0`: a flex item that may shrink
             to nothing never wraps, and the two columns would squeeze to ~160px
             each on a phone instead of stacking. */}
-        <DialogBody className="flex flex-wrap items-start gap-5">
-          <div className="min-w-[min(320px,100%)] flex-[1.15] space-y-5">
+        <DialogBody data-testid="task-body" className="flex flex-wrap items-start gap-5">
+          <div data-testid="task-col-left" className="min-w-[min(320px,100%)] flex-[1.15] space-y-5">
             <div className="grid gap-2 text-xs grid-cols-[repeat(auto-fit,minmax(120px,1fr))] *:min-w-0">
               <InfoTile label="ლოკაცია" value={taskLocation(task)} />
               <InfoTile label="შემსრულებელი" value={task.who || 'დაუნიშნავი'} />
@@ -351,7 +351,7 @@ export function TaskDialog({
             <Timeline task={task} />
           </div>
 
-          <div className="min-w-[min(320px,100%)] flex-1 space-y-2">
+          <div data-testid="task-col-right" className="min-w-[min(320px,100%)] flex-1 space-y-2">
             <SectionLabel>კომენტარები</SectionLabel>
             <div ref={threadRef} className="max-h-72 space-y-2.5 overflow-y-auto overscroll-contain">
               {comments.length === 0 ? (
@@ -422,7 +422,10 @@ export function TaskDialog({
               `disabled:pointer-events-none`, so a tooltip on it can never fire —
               and on a phone there is no hover to fire it with. */}
           {action?.disabled && (
-            <span className="w-full text-[11px] font-semibold text-warn sm:mr-auto sm:w-auto">
+            <span
+              data-testid="task-blocked"
+              className="w-full text-[11px] font-semibold text-warn sm:mr-auto sm:w-auto"
+            >
               {action.disabled}
             </span>
           )}
@@ -447,7 +450,12 @@ export function TaskDialog({
               <ShieldCheck className="h-4 w-4" /> ტექნიკური დადასტურება
             </Button>
           )}
-          <Button disabled={!action || !!action.disabled || busy} onClick={runAction}>
+          <Button
+            data-testid="task-action"
+            data-kind={action?.kind ?? 'none'}
+            disabled={!action || !!action.disabled || busy}
+            onClick={runAction}
+          >
             {action?.label ?? idleLabel(task)}
           </Button>
         </DialogFooter>
@@ -527,16 +535,24 @@ function EditPanel({
   const [title, setTitle] = useState(task.title)
   const [desc, setDesc] = useState(task.desc)
   const [whoId, setWhoId] = useState(task.whoId ?? '')
-  const [items, setItems] = useState<TaskChecklistItem[]>(task.checklist)
   // A counter, not a timestamp: two rows added inside the same millisecond would
   // share an id, and with it a React key.
   const minted = useRef(0)
+  const blank = (): TaskChecklistItem => ({
+    id: `${task.id}-n${(minted.current += 1)}`,
+    text: '',
+    done: false,
+    by: '',
+    at: '',
+  })
+  // Breaking a request down is the whole point of this panel, so it opens with
+  // somewhere to type. An empty list behind a ghost button read as "nothing to
+  // do here" — the opposite of the instruction the supervisor is waiting on.
+  const [items, setItems] = useState<TaskChecklistItem[]>(
+    task.checklist.length ? task.checklist : [blank()],
+  )
 
-  const addItem = () =>
-    setItems((prev) => [
-      ...prev,
-      { id: `${task.id}-n${(minted.current += 1)}`, text: '', done: false, by: '', at: '' },
-    ])
+  const addItem = () => setItems((prev) => [...prev, blank()])
 
   return (
     <div className="space-y-3 rounded-xl border border-line-2 bg-soft p-3">
