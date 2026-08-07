@@ -9,15 +9,20 @@ import { SEED_VERSION, seedRecords } from './seed'
 
 const DB_NAME = 'qc-platform'
 // v2 added the `photos` store, v3 the `defectComments` store, v4 the `stages`
-// store, v5 the `by-project` index on tasks and `by-task` on photos. Bumping
-// the version runs `onupgradeneeded`, which creates missing stores and indexes
-// without touching the rows already there.
-const DB_VERSION = 5
+// store, v5 the `recipients` store, v6 the `by-project` index on tasks and
+// `by-task` on photos. Bumping the version runs `onupgradeneeded`, which
+// creates missing stores and indexes without touching the rows already there.
+//
+// v6 exists because two branches both shipped a "v5": the recipients store and
+// the task indexes. A browser that opened either one is already at 5 and would
+// never run the upgrade for the other half — the merged schema needs a number
+// neither side has used.
+const DB_VERSION = 6
 
 export type StoreName =
   | 'apartments' | 'defects' | 'photos' | 'stages' | 'tasks' | 'taskComments'
   | 'defectComments' | 'standards'
-  | 'drawings' | 'archive' | 'users'
+  | 'drawings' | 'archive' | 'users' | 'recipients'
   | 'meta'
 
 const SPECS: StoreSpec<StoreName>[] = [
@@ -65,6 +70,9 @@ const SPECS: StoreSpec<StoreName>[] = [
   { name: 'drawings', keyPath: 'code' },
   { name: 'archive', keyPath: 'id' },
   { name: 'users', keyPath: 'mail' },
+  // Manually added mail recipients. Never seeded, and keyed by a generated id
+  // rather than the address itself so editing one stays a single put.
+  { name: 'recipients', keyPath: 'id' },
   { name: 'meta', keyPath: 'key' },
 ]
 
@@ -91,18 +99,32 @@ export function db(): Promise<Backend<StoreName>> {
 async function open(): Promise<Backend<StoreName>> {
   const backend = await openBackend(DB_NAME, DB_VERSION, SPECS)
   const meta = await backend.get<SeedMeta>('meta', 'seed')
-  if (meta?.version !== SEED_VERSION) await seed(backend)
+  // A version bump regenerates the demo dataset, but it is not the user asking
+  // for a reset — anything they entered by hand that a generator does not own
+  // survives it.
+  if (meta?.version !== SEED_VERSION) {
+    await seed(backend, ALL_STORES.filter((s) => !KEEP_ON_RESEED.includes(s)))
+  }
   return backend
 }
 
-async function seed(backend: Backend<StoreName>): Promise<void> {
-  await backend.clear(ALL_STORES)
+/**
+ * Configuration rather than demo content: the mail recipients somebody typed
+ * into Admin point at nothing the generators produce, so a version bump has no
+ * reason to take them out. Comments and photos are not on this list — they hang
+ * off defect and task ids that a reseed regenerates, and keeping them would
+ * leave rows pointing at records that no longer exist.
+ */
+const KEEP_ON_RESEED: StoreName[] = ['recipients']
+
+async function seed(backend: Backend<StoreName>, stores = ALL_STORES): Promise<void> {
+  await backend.clear(stores)
   await backend.write(seedRecords())
   const meta: SeedMeta = { key: 'seed', version: SEED_VERSION, at: new Date().toISOString() }
   await backend.write([{ store: 'meta', put: meta }])
 }
 
-/** Wipes every store and regenerates the demo dataset. */
+/** Wipes every store — including the hand-entered ones — and regenerates. */
 export async function resetDatabase(): Promise<void> {
   await seed(await db())
 }

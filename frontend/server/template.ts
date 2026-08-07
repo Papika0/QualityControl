@@ -36,6 +36,8 @@ export interface DefectMail {
   floor: string
   room: string
   cat: string
+  /** `code — title` of the standard the measure enforces. Omitted when none. */
+  standard?: string
   pri: Priority
   sub: string
   /** Deadline as `YYYY-MM-DD`. */
@@ -187,6 +189,7 @@ export function html(d: DefectMail, to: QaMember): string {
 ${row('ბინა / სართული', `${esc(d.apt)} <span style="color:${MUT};font-weight:400;">·</span> სართული ${esc(d.floor)}`)}
 ${row('ოთახი', esc(d.room))}
 ${row('კატეგორია', esc(d.cat))}
+${d.standard ? row('სტანდარტი', esc(d.standard)) : ''}
 ${row('შემსრულებელი', esc(d.sub))}
 ${row('დამფიქსირებელი', esc(d.filedBy))}
 ${row(
@@ -245,6 +248,7 @@ export function text(d: DefectMail, to: QaMember): string {
     `ბინა/სართული:  ${d.apt} · სართული ${d.floor}`,
     `ოთახი:         ${d.room}`,
     `კატეგორია:     ${d.cat}`,
+    d.standard ? `სტანდარტი:     ${d.standard}` : '',
     `შემსრულებელი:  ${d.sub}`,
     `დამფიქსირებელი: ${d.filedBy}`,
     `ვადა:          ${date(d.due)}${note ? ` (${note})` : ''}`,

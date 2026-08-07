@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Bell, CheckCircle2, ChevronLeft, CornerUpLeft, FileDown, ImageOff, Send, Wand2 } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { Bell, BookText, CheckCircle2, ChevronLeft, CornerUpLeft, FileDown, ImageOff, Send, Wand2 } from 'lucide-react'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAddDefectComment, useSetDefectStatus } from '@/api/mutations'
-import { defectCommentsQuery, defectPhotosQuery } from '@/api/queries'
+import { defectCommentsQuery, defectPhotosQuery, standardsQuery } from '@/api/queries'
 import type { Photo } from '@/api/client'
 import { useSession } from '@/lib/session'
 import { useToast } from '@/lib/toast'
@@ -93,6 +94,10 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
   const urls = useBlobUrls(photos)
   const active = photos[Math.min(activePhoto, photos.length - 1)]
 
+  // Only for the cited standard's title — the record stores its code alone.
+  const { data: standards } = useQuery({ ...standardsQuery(), enabled: !!defect?.standard })
+  const standard = (standards ?? []).find((s) => s.code === defect?.standard)
+
   if (!defect) return null
 
   const st = defect.st
@@ -105,6 +110,14 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
   const template = recoFor(defect.cat)
   const measure = defect.desc.trim() || template
   const autoMeasure = measure === template
+
+  // The code alone until the catalog query lands — never a blank line where a
+  // standard was cited.
+  const standardLabel = defect.standard
+    ? standard
+      ? `${standard.code} — ${standard.title}`
+      : defect.standard
+    : null
 
   const advance = () => {
     if (!next) return
@@ -136,6 +149,7 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
       ],
       blocks: [
         ...(defect.group ? [{ label: 'ჯგუფი', value: defect.group }] : []),
+        ...(standardLabel ? [{ label: 'სტანდარტი', value: standardLabel }] : []),
         { label: 'ობიექტი', value: `${project.name} — ${project.addr}` },
         { label: 'შემსრულებელი', value: defect.sub },
         { label: 'პასუხისმგებელი ინსპექტორი', value: defect.who },
@@ -284,6 +298,20 @@ export function DefectDialog({ defect, onClose }: { defect: Defect | null; onClo
                 გამოსასწორებელი ღონისძიება{autoMeasure && ' — ავტომატური'}
               </div>
               <div className="text-[12.5px] leading-[1.6] text-note-ink">{measure}</div>
+              {/* The document the measure enforces — the inspector reads it off
+                  the acceptance sheet, so it links straight to the full text. */}
+              {standardLabel && (
+                <Link
+                  to="/standards/$code"
+                  params={{ code: defect.standard! }}
+                  onClick={onClose}
+                  title={standardLabel}
+                  className="mt-2.5 inline-flex max-w-full items-center gap-1.5 rounded-full border border-note-line bg-note-field px-2.5 py-1 text-[10.5px] font-semibold text-note-label hover:border-brand-ring hover:text-brand-dark"
+                >
+                  <BookText className="h-2.75 w-2.75 flex-none" />
+                  <span className="truncate">{standardLabel}</span>
+                </Link>
+              )}
             </div>
 
             <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-mut-2">

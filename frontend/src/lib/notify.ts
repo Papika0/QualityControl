@@ -22,11 +22,15 @@ export interface DefectNotice {
   floor: string
   room: string
   cat: string
+  /** `code — title` of the standard cited, when the filing named one. */
+  standard?: string
   pri: Priority
   sub: string
   due: string
   desc: string
   filedBy: string
+  /** Manually added addresses copied on the notice. The server re-validates. */
+  cc?: string[]
   photos?: PreparedPhoto[]
 }
 
@@ -50,8 +54,10 @@ function toBase64(blob: Blob): Promise<string> {
 
 export interface NoticeResult {
   ok: boolean
-  /** Recipient address, echoed back so the toast can name it. */
+  /** Assignee's address, echoed back so the toast can name it. */
   to?: string
+  /** The manual addresses that survived server-side validation. */
+  cc?: string[]
   error?: string
 }
 
@@ -80,7 +86,7 @@ export async function sendDefectNotice(notice: DefectNotice): Promise<NoticeResu
     if (!res.ok || !body?.ok) {
       return { ok: false, error: body?.error ?? `HTTP ${res.status}` }
     }
-    return { ok: true, to: body.to }
+    return { ok: true, to: body.to, cc: body.cc }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'ქსელის შეცდომა' }
   }

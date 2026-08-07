@@ -163,6 +163,32 @@ export function useSetUserActive() {
   })
 }
 
+export function useAddRecipient() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ mail, name }: { mail: string; name?: string }) =>
+      api.recipients.add(mail, name),
+    onSuccess: () => invalidate(qc, ['recipients']),
+  })
+}
+
+export function useUpdateRecipient() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string; mail?: string; name?: string }) =>
+      api.recipients.update(id, patch),
+    onSuccess: () => invalidate(qc, ['recipients']),
+  })
+}
+
+export function useRemoveRecipient() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.recipients.remove(id),
+    onSuccess: () => invalidate(qc, ['recipients']),
+  })
+}
+
 export function useResetDemoData() {
   const qc = useQueryClient()
   return useMutation({
