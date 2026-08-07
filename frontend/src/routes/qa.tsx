@@ -4,7 +4,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { CircleCheck, FileDown, Plus, X } from 'lucide-react'
 import { defectsQuery } from '@/api/queries'
-import { CATS, DEFECT_FLOW, PRI_DOT, PRI_LABEL, TODAY, type Defect, type DefectStatus, type Priority } from '@/data/domain'
+import { CATS, DEFECT_FLOW, PEOPLE, PRI_DOT, PRI_LABEL, TODAY, type Defect, type DefectStatus, type Priority } from '@/data/domain'
 import { useSession } from '@/lib/session'
 import { useToast } from '@/lib/toast'
 import { exportReport } from '@/lib/pdf'
@@ -32,6 +32,8 @@ interface QaSearch {
   pri?: Priority
   overdue?: boolean
   cat?: string
+  /** Responsible supervisor, by name — how „ჩემი ხარვეზები" is linked to. */
+  who?: string
   id?: string
 }
 
@@ -41,6 +43,7 @@ export const Route = createFileRoute('/qa')({
     pri: ['high', 'med', 'low'].includes(search.pri as string) ? (search.pri as Priority) : undefined,
     overdue: search.overdue === true || undefined,
     cat: (CATS as readonly string[]).includes(search.cat as string) ? (search.cat as string) : undefined,
+    who: PEOPLE.includes(search.who as string) ? (search.who as string) : undefined,
     id: typeof search.id === 'string' ? search.id : undefined,
   }),
   component: QaPage,
@@ -74,6 +77,7 @@ function QaPage() {
     if (search.pri) list = list.filter((d) => d.pri === search.pri)
     if (search.overdue) list = list.filter((d) => d.due < TODAY && d.st !== 'დახურული')
     if (search.cat) list = list.filter((d) => d.cat === search.cat)
+    if (search.who) list = list.filter((d) => d.who === search.who)
 
     const cmp: Record<SortKey, (a: Defect, b: Defect) => number> = {
       // Nearest deadline first — overdue rows lead, since their date is furthest back.
@@ -111,13 +115,14 @@ function QaPage() {
   const setFilter = (patch: Partial<QaSearch>) =>
     navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true })
 
-  const noFilter = !search.st && !search.pri && !search.overdue && !search.cat
+  const noFilter = !search.st && !search.pri && !search.overdue && !search.cat && !search.who
 
   /** Human-readable list of what the current view is narrowed to. */
   const activeFilters = [
     search.st && `სტატუსი: ${search.st}`,
     search.pri && `პრიორიტეტი: ${PRI_LABEL[search.pri]}`,
     search.cat && `კატეგორია: ${search.cat}`,
+    search.who && `პასუხისმგებელი: ${search.who}`,
     search.overdue && 'მხოლოდ ვადაგადაცილებული',
   ].filter(Boolean) as string[]
 
@@ -226,6 +231,11 @@ function QaPage() {
           {search.cat && (
             <Chip active onClick={() => setFilter({ cat: undefined })} className="inline-flex items-center gap-1.5">
               კატეგორია: {search.cat} <X className="h-3 w-3" />
+            </Chip>
+          )}
+          {search.who && (
+            <Chip active onClick={() => setFilter({ who: undefined })} className="inline-flex items-center gap-1.5">
+              {search.who} <X className="h-3 w-3" />
             </Chip>
           )}
         </div>

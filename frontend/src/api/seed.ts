@@ -12,12 +12,13 @@
 import { hash01 } from '@/lib/utils'
 import type { Annotation } from '@/lib/annotate'
 import {
-  DEFECT_FLOW, PEOPLE, PROBLEM_CATS, PROJECTS, ROOMS, STAGES, SUBS, TASK_TYPES,
-  progressFromStages, recoFor,
+  DEFECT_FLOW, PEOPLE, PROBLEM_CATS, PROJECTS, QA_TEAM, ROOMS, STAGES, SUBS,
+  TASK_FLOW, TODAY, progressFromStages, recoFor,
   type Apartment, type ArchiveRow, type Defect,
   type DefectComment, type DefectEvent, type DefectStatus, type DocRow,
   type Priority, type ProjectId, type Stage, type StageStatus, type Standard,
-  type Task, type TaskComment, type UserRow,
+  type Task, type TaskChecklistItem, type TaskColumn, type TaskComment,
+  type TaskEvent, type TaskTrack, type UserRow,
 } from '@/data/domain'
 import { STANDARD_INDEX } from '@/data/standards-index'
 import type { WriteOp } from './idb'
@@ -34,7 +35,11 @@ import type { StoreName } from './schema'
 // ხელშეკრულება, აქტი and ჯარიმა — dropping invoices, expert reports and policies.
 // v8 dropped the contracts and audit-log datasets along with those modules.
 // v9 dropped the owner-portal documents and the two retired role accounts.
-export const SEED_VERSION = 9
+// v10 rebuilt the tasks around the request → breakdown → handover workflow:
+// project-scoped rows, a real stored checklist, multi-floor locations and
+// assignees drawn from QA_TEAM so per-supervisor visibility has something to
+// match on. Deadlines and task types are gone.
+export const SEED_VERSION = 10
 
 /**
  * Stored rows carry an `ord` so lists come back in generated order rather than
@@ -45,7 +50,7 @@ export type Ordered<T> = T & { ord: number }
 export type AptRow = Ordered<Apartment> & { key: string; proj: ProjectId }
 export type DefectRow = Ordered<Defect> & { key: string; proj: ProjectId }
 export type StageRow = Ordered<Stage> & { key: string; proj: ProjectId }
-export type TaskRow = Ordered<Task>
+export type TaskRow = Ordered<Task> & { proj: ProjectId }
 export type StandardRow = Ordered<Standard>
 export type DocumentRow = Ordered<DocRow>
 export type ArchiveDocRow = Ordered<ArchiveRow>
@@ -64,10 +69,19 @@ export type DefectCommentRow = Ordered<DefectComment>
  */
 export interface PhotoRow {
   id: string
-  /** `proj:defectId` — the defect this photo documents. */
-  defect: string
+  /**
+   * `proj:defectId` — the defect this photo documents. Absent on task photos.
+   *
+   * IndexedDB skips a record that lacks an index's keyPath, so `by-defect` and
+   * `by-task` hold disjoint sets and neither needs a discriminator column.
+   */
+  defect?: string
+  /** The task this photo was posted on. Absent on defect photos. */
+  taskId?: string
+  /** The comment it was attached to, so the thread can render it in place. */
+  commentId?: string
   ord: number
-  kind: 'before' | 'after'
+  kind: 'before' | 'after' | 'task'
   name: string
   /** ISO timestamp of when the photo was attached. */
   at: string
@@ -239,16 +253,224 @@ function generateDefects(proj: ProjectId, no: string, count: number, baseOrd: nu
 
 // ------------------------------------------------------------- static tables
 
-const TASKS: Task[] = [
-  { id: 'T-2101', title: 'კერამოგრანიტის შემოწმება — დერეფანი', loc: 'მე-10 სართ.', who: 'თ. აბულაძე', due: '12 აგვ', col: 'new', pri: 'med', floor: 10, type: 'კერამოგრანიტის შემოწმება' },
-  { id: 'T-2102', title: 'ლიფტის კარებების მონტაჟის შემოწმება', loc: 'მე-5 სართ.', who: 'ზ. ხურციძე', due: '10 აგვ', col: 'new', pri: 'med', floor: 5, type: 'ლიფტის მონტაჟის შემოწმება' },
-  { id: 'T-2103', title: 'შავი ბლოკის წყობის შემოწმება', loc: 'მე-17 სართ.', who: 'ლ. ჩხეიძე', due: '15 აგვ', col: 'prog', pri: 'high', floor: 17, type: 'წყობის შემოწმება' },
-  { id: 'T-2104', title: 'ელექტროობის კაბელების დაქსელვის შემოწმება', loc: 'მე-11 სართ.', who: 'ი. მაისურაძე', due: '30 ივლ', col: 'prog', pri: 'high', floor: 11, type: 'ელექტროობის შემოწმება' },
-  { id: 'T-2105', title: 'ელექტრო კოლოფების რაოდენობის შემოწმება', loc: 'მე-11 სართ.', who: 'ი. მაისურაძე', due: '11 აგვ', col: 'prog', pri: 'med', floor: 11, type: 'ელექტროობის შემოწმება' },
-  { id: 'T-2108', title: 'ჰაერსატარების, კანალიზაციისა და წყალგაყვანილობის მილების გადმოსვლის (10 სმ) შემოწმება', loc: 'მე-14 · 18 ბინა', who: 'გ. კვარაცხელია', due: '08 აგვ', col: 'prog', pri: 'high', floor: 14, type: TASK_TYPES[1]! },
-  { id: 'T-2106', title: 'აივნის ფასადების შემოწმება', loc: 'მე-9 სართ.', who: 'გ. კვარაცხელია', due: '05 აგვ', col: 'check', pri: 'med', floor: 9, type: 'ფასადის შემოწმება' },
-  { id: 'T-2107', title: 'MEP — დაქსელილი წყლის მილების ტესტირების ჩაბარება', loc: 'მე-8 სართ.', who: 'ი. მაისურაძე', due: '30 ივლ', col: 'done', pri: 'med', floor: 8, type: 'MEP ტესტირება' },
+/** ISO stamp `n` days before the demo's today, at `h` o'clock. */
+function ago(n: number, h: number): string {
+  const d = new Date(`${TODAY}T00:00:00`)
+  d.setDate(d.getDate() - n)
+  return `${d.toISOString().slice(0, 10)}T${String(h).padStart(2, '0')}:00:00`
+}
+
+const nameOf = (id: string) => QA_TEAM.find((m) => m.id === id)!.name
+
+const PMDIR = 'პროექტების მართვის დირექტორი'
+const PFM = 'პორტფოლიო მენეჯერი'
+const PM = 'პროექტის მენეჯერი'
+const TECHDIR = 'ტექნიკური დირექტორი'
+
+/**
+ * A seeded task, before the repetitive parts are filled in. The demo needs one
+ * row in every state a role can act on, so the shape stays terse and `expand`
+ * derives the checklist stamps, the gate and a history consistent with `col`.
+ */
+interface TaskSeed {
+  id: string
+  proj: ProjectId
+  title: string
+  desc: string
+  col: TaskColumn
+  pri: Priority
+  floors: number[]
+  apts?: string[]
+  /** `QA_TEAM` id. A request is filed unassigned. */
+  who?: string
+  by: string
+  track?: TaskTrack
+  parentId?: string
+  items?: string[]
+  /** How many of `items` the supervisor has ticked. */
+  ticked?: number
+  /** Whether the supervisor has signed the current step off. */
+  ready?: boolean
+  /** Display name of whoever vouched technically, if anyone has. */
+  techOk?: string
+  /** Days before today the task was filed — spaces the history out. */
+  age: number
+}
+
+function expand(s: TaskSeed): Task {
+  const who = s.who ? nameOf(s.who) : ''
+  const ticked = s.ticked ?? 0
+  const checklist: TaskChecklistItem[] = (s.items ?? []).map((text, i) => ({
+    id: `${s.id}-c${i + 1}`,
+    text,
+    done: i < ticked,
+    by: i < ticked ? who : '',
+    at: i < ticked ? ago(s.age - 2 - i, 11) : '',
+  }))
+
+  // One entry per column the task has already passed through, oldest first.
+  const reached = TASK_FLOW.slice(0, TASK_FLOW.indexOf(s.col) + 1)
+  const history: TaskEvent[] = reached.map((col, i) => ({
+    col,
+    at: ago(s.age - i * 2, 9 + i),
+    who: col === 'req' ? s.by : col === 'new' ? PM : who || s.by,
+  }))
+
+  return {
+    id: s.id,
+    title: s.title,
+    desc: s.desc,
+    track: s.track ?? 'main',
+    col: s.col,
+    pri: s.pri,
+    floors: s.floors,
+    apts: s.apts ?? [],
+    whoId: s.who ?? null,
+    who,
+    by: s.by,
+    ...(s.parentId ? { parentId: s.parentId } : {}),
+    checklist,
+    gate: {
+      ...(s.ready ? { ready: { by: who, at: ago(1, 16) } } : {}),
+      ...(s.techOk ? { techOk: { by: s.techOk, at: ago(1, 18) } } : {}),
+    },
+    history,
+  }
+}
+
+const TASK_SEEDS: TaskSeed[] = [
+  // ── NTB — one row per state worth clicking ────────────────────────────────
+  {
+    id: 'T-2101', proj: 'NTB', col: 'req', pri: 'high', age: 3, by: PMDIR,
+    title: 'მე-14 სართულის ჩაბარებამდე სრული შემოწმება',
+    desc: 'ჩააბარეთ მე-14 სართული — მილების გადმოსვლა, ელექტრო კოლოფები და ლესვის ხარისხი. ჩაშალეთ და დაავალეთ ზედამხედველს.',
+    floors: [14],
+  },
+  {
+    id: 'T-2102', proj: 'NTB', col: 'req', pri: 'med', age: 2, by: PFM,
+    title: 'ფასადის მოპირკეთების შერჩევითი კონტროლი — მე-9 და მე-10',
+    desc: 'პორტფელის კვარტალურ მიმოხილვამდე გვჭირდება ფასადის ფოტოფიქსაცია ორივე სართულზე.',
+    floors: [9, 10],
+  },
+  {
+    id: 'T-2103', proj: 'NTB', col: 'new', pri: 'med', age: 6, by: PM, who: 'guji',
+    title: 'კერამოგრანიტის შემოწმება — დერეფანი',
+    desc: 'დერეფნის იატაკის ფილა — ღრეჩოები, სიბრტყე და კუთხეების დამუშავება.',
+    floors: [10], apts: ['1004', '1005'],
+    items: ['ვიზუალური დათვალიერება', 'ღრეჩოს გაზომვა (≤2 მმ)', 'ფოტოფიქსაცია'],
+  },
+  {
+    id: 'T-2104', proj: 'NTB', col: 'new', pri: 'med', age: 5, by: PM, who: 'paata',
+    title: 'ლიფტის კარებების მონტაჟის შემოწმება',
+    desc: 'ორივე შახტაზე — კარების ვერტიკალი, ღრეჩო და ჩამკეტის მუშაობა.',
+    floors: [5],
+    items: ['ვერტიკალის შემოწმება', 'ღრეჩოს გაზომვა', 'ჩამკეტის ტესტი', 'ფოტოფიქსაცია'],
+  },
+  {
+    id: 'T-2105', proj: 'NTB', col: 'prog', pri: 'high', age: 9, by: PM, who: 'guji',
+    title: 'შავი ბლოკის წყობის შემოწმება',
+    desc: 'წყობის ვერტიკალი და ხსნარის სისქე სტანდარტთან შედარებით.',
+    floors: [17], apts: ['1702', '1703', '1706'],
+    items: ['ვერტიკალის გაზომვა', 'ხსნარის სისქე', 'ბლოკის მარკის დადასტურება', 'ფოტოფიქსაცია'],
+    ticked: 2,
+  },
+  {
+    id: 'T-2106', proj: 'NTB', col: 'prog', pri: 'high', age: 11, by: PM, who: 'paata',
+    title: 'ელექტრო კოლოფების რაოდენობისა და პოზიციის შემოწმება',
+    desc: 'პროექტთან შედარება ბინა-ბინა; ყველა გადახრა დააფიქსირეთ ფოტოთი.',
+    floors: [11], apts: ['1101', '1102', '1103'],
+    items: ['პროექტთან შედარება', 'პოზიციის გაზომვა', 'ფოტოფიქსაცია'],
+    ticked: 3, ready: true,
+  },
+  {
+    id: 'T-2107', proj: 'NTB', col: 'check', pri: 'high', age: 14, by: PM, who: 'guji',
+    title: 'მილების გადმოსვლის (10 სმ) შემოწმება',
+    desc: 'ჰაერსატარი, კანალიზაცია და წყალგაყვანილობა — გადმოსვლა 10 სმ-ზე.',
+    floors: [14], apts: ['1418'],
+    items: ['ჰაერსატარის გაზომვა', 'კანალიზაციის გაზომვა', 'წყალგაყვანილობის გაზომვა', 'აქტის მომზადება'],
+    ticked: 4, ready: true,
+  },
+  {
+    id: 'T-2108', proj: 'NTB', col: 'check', pri: 'med', age: 16, by: PM, who: 'paata',
+    title: 'აივნის ფასადების შემოწმება',
+    desc: 'აივნების მოპირკეთება და ჰიდროიზოლაციის კიდეები.',
+    floors: [9],
+    items: ['ვიზუალური დათვალიერება', 'ჰიდროიზოლაციის კიდეები', 'ფოტოფიქსაცია'],
+    ticked: 3, ready: true, techOk: TECHDIR,
+  },
+  {
+    id: 'T-2109', proj: 'NTB', col: 'done', pri: 'med', age: 22, by: PM, who: 'guji',
+    title: 'MEP — დაქსელილი წყლის მილების ტესტირების ჩაბარება',
+    desc: 'წნევის ტესტი და ჩაბარების აქტი.',
+    floors: [8],
+    items: ['წნევის ტესტი', 'ჟურნალის შევსება', 'აქტის მომზადება'],
+    ticked: 3, techOk: TECHDIR,
+  },
+  {
+    id: 'T-2110', proj: 'NTB', col: 'prog', pri: 'high', age: 7, by: TECHDIR, who: 'daniel',
+    track: 'tech',
+    title: 'MEP პროექტის ცვლილების ადგილზე გადამოწმება',
+    desc: 'rev. C-ის მიხედვით შეადარეთ ფაქტობრივი დაქსელვა და მოამზადეთ დასკვნა.',
+    floors: [11, 12],
+    items: ['rev. C-სთან შედარება', 'გადახრების აღრიცხვა', 'დასკვნის მომზადება'],
+    ticked: 1,
+  },
+  // Two sub-tasks broken out of T-2105, assigned to a second supervisor.
+  {
+    id: 'T-2111', proj: 'NTB', col: 'new', pri: 'med', age: 4, by: PM, who: 'paata',
+    parentId: 'T-2105',
+    title: 'წყობის ხსნარის ლაბორატორიული სინჯი — მე-17',
+    desc: 'აიღეთ სინჯი და გადაეცით ლაბორატორიას.',
+    floors: [17], apts: ['1702'],
+    items: ['სინჯის აღება', 'ლაბორატორიაში გადაცემა'],
+  },
+  {
+    id: 'T-2112', proj: 'NTB', col: 'prog', pri: 'low', age: 4, by: PM, who: 'guji',
+    parentId: 'T-2105',
+    title: 'ბლოკის მარკის დოკუმენტაციის შემოწმება',
+    desc: 'მიმწოდებლის სერტიფიკატი და მარკის შესაბამისობა.',
+    floors: [17],
+    items: ['სერტიფიკატის მოძიება', 'მარკის შედარება'],
+    ticked: 1,
+  },
+  // ── SBP ───────────────────────────────────────────────────────────────────
+  {
+    id: 'T-2201', proj: 'SBP', col: 'req', pri: 'med', age: 3, by: PFM,
+    title: 'მე-12 სართულის ლესვის ხარისხის მიმოხილვა',
+    desc: 'პორტფელის მიმოხილვისთვის საჭიროა ინტერიერის ლესვის შერჩევითი კონტროლი.',
+    floors: [12],
+  },
+  {
+    id: 'T-2202', proj: 'SBP', col: 'prog', pri: 'high', age: 8, by: PM, who: 'guji',
+    title: 'ჰიდროსაიზოლაციო სამუშაოების მიღება — სველი წერტილები',
+    desc: 'წყალშეკავების ტესტი და კიდეების დამუშავება.',
+    floors: [7], apts: ['703', '704'],
+    items: ['წყალშეკავების ტესტი', 'კიდეების შემოწმება', 'ფოტოფიქსაცია'],
+    ticked: 2,
+  },
+  // ── BTM ───────────────────────────────────────────────────────────────────
+  {
+    id: 'T-2301', proj: 'BTM', col: 'new', pri: 'med', age: 5, by: PM, who: 'paata',
+    title: 'ბაზალტის ფილით მოპირკეთების შემოწმება — ცოკოლი',
+    desc: 'ფილის ჯდომა, ღრეჩო და წებოცემენტის ხარისხი.',
+    floors: [1],
+    items: ['ვიზუალური დათვალიერება', 'ღრეჩოს გაზომვა', 'ფოტოფიქსაცია'],
+  },
+  {
+    id: 'T-2302', proj: 'BTM', col: 'check', pri: 'med', age: 13, by: TECHDIR, who: 'daniel',
+    track: 'tech',
+    title: 'წყლის სატუმბი სადგურის ექსპლუატაციაში მიღება',
+    desc: 'ინსტრუქციის მიხედვით გაუშვით და დააფიქსირეთ პარამეტრები.',
+    floors: [1],
+    items: ['გაშვების ტესტი', 'პარამეტრების ჩაწერა', 'ჟურნალის შევსება'],
+    ticked: 3, ready: true,
+  },
 ]
+
+const TASKS: (Task & { proj: ProjectId })[] = TASK_SEEDS.map((s) => ({
+  ...expand(s),
+  proj: s.proj,
+}))
 
 // The card list for the real TEC documents. Only what the card shows is seeded;
 // the body text lives in `standards-content` and is read straight from there by

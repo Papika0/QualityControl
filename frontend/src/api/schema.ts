@@ -9,9 +9,10 @@ import { SEED_VERSION, seedRecords } from './seed'
 
 const DB_NAME = 'qc-platform'
 // v2 added the `photos` store, v3 the `defectComments` store, v4 the `stages`
-// store. Bumping the version runs `onupgradeneeded`, which creates missing
-// stores without touching the rows already there.
-const DB_VERSION = 4
+// store, v5 the `by-project` index on tasks and `by-task` on photos. Bumping
+// the version runs `onupgradeneeded`, which creates missing stores and indexes
+// without touching the rows already there.
+const DB_VERSION = 5
 
 export type StoreName =
   | 'apartments' | 'defects' | 'photos' | 'stages' | 'tasks' | 'taskComments'
@@ -33,9 +34,18 @@ const SPECS: StoreSpec<StoreName>[] = [
       { name: 'by-apartment', keyPath: ['proj', 'apt'] },
     ],
   },
-  // Field photos, keyed to the defect they document. Blobs live in their own
-  // store so listing defects never drags megabytes of image data along.
-  { name: 'photos', keyPath: 'id', indexes: [{ name: 'by-defect', keyPath: 'defect' }] },
+  // Field photos, keyed to whatever they document. Blobs live in their own
+  // store so listing defects never drags megabytes of image data along. A row
+  // carries `defect` or `taskId`, never both, and IndexedDB leaves it out of
+  // the index whose keyPath it lacks — so the two sets stay disjoint for free.
+  {
+    name: 'photos',
+    keyPath: 'id',
+    indexes: [
+      { name: 'by-defect', keyPath: 'defect' },
+      { name: 'by-task', keyPath: 'taskId' },
+    ],
+  },
   {
     name: 'stages',
     keyPath: 'key',
@@ -44,7 +54,10 @@ const SPECS: StoreSpec<StoreName>[] = [
       { name: 'by-apartment', keyPath: ['proj', 'apt'] },
     ],
   },
-  { name: 'tasks', keyPath: 'id' },
+  // Task ids are minted unique across the whole store, not per project, so the
+  // key stays `id` — `onupgradeneeded` can add an index but cannot change a
+  // keyPath, and a composite key would mean dropping and recreating the store.
+  { name: 'tasks', keyPath: 'id', indexes: [{ name: 'by-project', keyPath: 'proj' }] },
   { name: 'taskComments', keyPath: 'id', indexes: [{ name: 'by-task', keyPath: 'taskId' }] },
   // Comments are never seeded — every row here was typed by a person.
   { name: 'defectComments', keyPath: 'id', indexes: [{ name: 'by-defect', keyPath: 'defect' }] },

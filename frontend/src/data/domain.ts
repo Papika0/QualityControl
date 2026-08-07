@@ -1,7 +1,7 @@
 // Domain model + reference data for the QC platform.
 // Ported from the approved interactive prototype (Nutsubidze 2A Platform).
 
-export type RoleId = 'admin' | 'techdir' | 'pmdir' | 'pm' | 'qa' | 'techsup'
+export type RoleId = 'admin' | 'techdir' | 'pmdir' | 'pfm' | 'pm' | 'qa' | 'techsup'
 
 export interface Role {
   id: RoleId
@@ -21,7 +21,20 @@ export interface Project {
 
 export type DefectStatus = 'ღია' | 'მიმდინარე' | 'შემოწმებაზე' | 'დახურული'
 export type Priority = 'high' | 'med' | 'low'
-export type TaskColumn = 'new' | 'prog' | 'check' | 'done'
+
+/**
+ * Task lifecycle. `req` is a superior's request: it exists before the work is
+ * defined, and only the project manager sees it — breaking it into checklist
+ * items or sub-tasks is what turns it into a `new` task the supervisor works.
+ */
+export type TaskColumn = 'req' | 'new' | 'prog' | 'check' | 'done'
+
+/**
+ * Which chain of command a task belongs to. `tech` tasks run between the
+ * technical director and the technical supervisor and are invisible to
+ * everybody else; `main` tasks are the site flow.
+ */
+export type TaskTrack = 'main' | 'tech'
 
 export interface Apartment {
   no: string
@@ -79,16 +92,64 @@ export interface Defect {
   history?: DefectEvent[]
 }
 
+/** One breakdown item the manager wrote; the supervisor ticks it. */
+export interface TaskChecklistItem {
+  id: string
+  text: string
+  done: boolean
+  /** Display name of whoever ticked it, '' while open. */
+  by: string
+  /** ISO stamp of the tick, '' while open. */
+  at: string
+}
+
+/** Who signed something, and when — same who/at pair as `DefectEvent`. */
+export interface TaskStamp {
+  by: string
+  at: string
+}
+
+/**
+ * The two signatures that gate a move. `ready` is the supervisor saying the
+ * work is done; it is cleared on every column change, so each step is signed
+ * afresh. `techOk` is the technical side vouching that a main-track task may
+ * close at all — set once, then kept.
+ */
+export interface TaskGate {
+  ready?: TaskStamp
+  techOk?: TaskStamp
+}
+
+/** One step of a task's life: the moment it entered a column, and by whom. */
+export interface TaskEvent {
+  col: TaskColumn
+  at: string
+  who: string
+}
+
 export interface Task {
   id: string
   title: string
-  loc: string
-  who: string
-  due: string
+  /** What the request actually asks for. */
+  desc: string
+  track: TaskTrack
   col: TaskColumn
   pri: Priority
-  floor: number
-  type: string
+  /** Floors the work covers — multi-select, never empty. */
+  floors: number[]
+  /** Apartments inside those floors; empty means the whole floor. */
+  apts: string[]
+  /** `QA_TEAM` id of the executor, null while a request is unassigned. */
+  whoId: string | null
+  /** Display name of the executor, '' while unassigned. */
+  who: string
+  /** Who filed it — display name. */
+  by: string
+  /** The request or task this one was broken out of. */
+  parentId?: string
+  checklist: TaskChecklistItem[]
+  gate: TaskGate
+  history?: TaskEvent[]
 }
 
 export interface Standard {
@@ -197,6 +258,7 @@ export const ROLES: Role[] = [
   { id: 'admin', name: 'სისტემის ადმინისტრატორი', ini: 'სა', canAdmin: true, scope: 'ყველა პროექტი, ყველა მოდული' },
   { id: 'techdir', name: 'ტექნიკური დირექტორი', ini: 'თდ', canAdmin: false, scope: 'ყველა პროექტი' },
   { id: 'pmdir', name: 'პროექტების მართვის დირექტორი', ini: 'პდ', canAdmin: false, scope: 'ყველა პროექტი' },
+  { id: 'pfm', name: 'პორტფოლიო მენეჯერი', ini: 'პფ', canAdmin: false, scope: 'პორტფელის პროექტები' },
   { id: 'pm', name: 'პროექტის მენეჯერი', ini: 'ნბ', canAdmin: false, scope: 'საკუთარი პროექტები' },
   { id: 'qa', name: 'ზედამხედველი (QA/QC)', ini: 'გკ', canAdmin: false, scope: 'მინიჭებული პროექტები' },
   { id: 'techsup', name: 'ტექნიკური ზედამხედველი', ini: 'ტზ', canAdmin: false, scope: 'მინიჭებული პროექტები' },
@@ -463,17 +525,6 @@ export const SUBS = ['შპს ალიანს-მშენი', 'შპს 
 
 export const ROOMS = ['სამზარეულო', 'სველი წერტილი', 'მისაღები', 'საძინებელი', 'ჰოლი']
 
-export const TASK_TYPES = [
-  'ინსპექცია — ზოგადი',
-  'მილების გადმოსვლის შემოწმება (10 სმ)',
-  'კერამოგრანიტის შემოწმება',
-  'ელექტროობის შემოწმება',
-  'წყობის შემოწმება',
-  'ფასადის შემოწმება',
-  'ლიფტის მონტაჟის შემოწმება',
-  'MEP ტესტირება',
-]
-
 export const PRI_LABEL: Record<Priority, string> = { high: 'მაღალი', med: 'საშუალო', low: 'დაბალი' }
 
 /**
@@ -509,14 +560,8 @@ export function canTrackStages(role: RoleId | undefined): boolean {
   )
 }
 
-/**
- * Roles allowed to hand out a task. On site the assignment comes from the
- * technical director or the project manager; supervisors execute and report,
- * they do not create the work order.
- */
-export function canAssignTasks(role: RoleId | undefined): boolean {
-  return role === 'techdir' || role === 'pm' || role === 'admin'
-}
+// Task permissions live in `lib/task-perms.ts` — they need to know who is
+// logged in (role *and* person), which is a session concept, not a domain one.
 
 /** How much of a stage counts as done — the basis of an apartment's progress. */
 export function stageWeight(st: StageStatus): number {
@@ -540,11 +585,37 @@ export function nextDefectStatus(st: DefectStatus): DefectStatus | null {
 }
 
 /** Kanban lifecycle, in order. */
-export const TASK_FLOW: TaskColumn[] = ['new', 'prog', 'check', 'done']
+export const TASK_FLOW: TaskColumn[] = ['req', 'new', 'prog', 'check', 'done']
+
+export const TASK_COL_LABEL: Record<TaskColumn, string> = {
+  req: 'უფროსის მოთხოვნა',
+  new: 'ახალი',
+  prog: 'მიმდინარე',
+  check: 'შემოწმებაზე',
+  done: 'დასრულებული',
+}
 
 export function nextTaskColumn(col: TaskColumn): TaskColumn | null {
   const i = TASK_FLOW.indexOf(col)
   return i >= 0 && i < TASK_FLOW.length - 1 ? TASK_FLOW[i + 1]! : null
+}
+
+/** Georgian ordinal: the first floor is `1-ლი`, every other one is `მე-N`. */
+export function floorLabel(n: number): string {
+  return n === 1 ? '1-ლი' : `მე-${n}`
+}
+
+/** `მე-10, მე-14 სართ. · 1204, 1409` — the card and dialog location line. */
+export function taskLocation(t: Pick<Task, 'floors' | 'apts'>): string {
+  if (!t.floors.length) return '—'
+  const f = t.floors.map(floorLabel).join(', ')
+  return t.apts.length ? `${f} სართ. · ${t.apts.join(', ')}` : `${f} სართ.`
+}
+
+/** Checklist completion, 0–100. An empty checklist reads as 0. */
+export function checklistProgress(items: TaskChecklistItem[]): number {
+  if (!items.length) return 0
+  return Math.round((items.filter((i) => i.done).length / items.length) * 100)
 }
 
 /**
@@ -559,6 +630,11 @@ export const STATUS_TONE: Record<string, Tone> = {
   'მიმდინარე': 'info',
   'შემოწმებაზე': 'warn',
   'დახურული': 'ok',
+  // Task columns. `მიმდინარე` and `შემოწმებაზე` are already covered above —
+  // the two vocabularies deliberately share a label and a tone.
+  'უფროსის მოთხოვნა': 'neutral',
+  'ახალი': 'open',
+  'დასრულებული': 'ok',
   'In Progress': 'info',
   'Completed': 'ok',
   'Delayed': 'warn',

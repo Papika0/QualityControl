@@ -2,14 +2,24 @@
 // that record authorship also name the actor from the current session.
 
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import type { DefectStatus, StageName, TaskColumn } from '@/data/domain'
+import type { DefectStatus, StageName } from '@/data/domain'
 import { useSession } from '@/lib/session'
-import { api, type NewDefectInput } from './client'
+import {
+  api,
+  type NewDefectInput,
+  type NewPhotoInput,
+  type NewTaskInput,
+  type TaskPatch,
+} from './client'
 
-/** Falls back to a generic label when a route is somehow rendered logged out. */
+/**
+ * Who is writing. Supervisors sign as themselves — tasks are assigned to a
+ * person, so a stamp reading only "ზედამხედველი" would not say which one.
+ * Falls back to a generic label when a route is somehow rendered logged out.
+ */
 function useActor(): string {
-  const { role } = useSession()
-  return role?.name ?? 'უცნობი მომხმარებელი'
+  const { role, person } = useSession()
+  return person?.name ?? role?.name ?? 'უცნობი მომხმარებელი'
 }
 
 const invalidate = (qc: QueryClient, keys: string[]) =>
@@ -67,11 +77,66 @@ export function useSetStageAssignee() {
   })
 }
 
-export function useSetTaskColumn() {
+export function useCreateTask() {
   const qc = useQueryClient()
+  const { project } = useSession()
+  const actor = useActor()
   return useMutation({
-    mutationFn: ({ id, col }: { id: string; col: TaskColumn }) => api.tasks.setColumn(id, col),
+    mutationFn: (input: NewTaskInput) => api.tasks.create(project.id, input, actor),
     onSuccess: () => invalidate(qc, ['tasks']),
+  })
+}
+
+export function useUpdateTask() {
+  const qc = useQueryClient()
+  const { project } = useSession()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: TaskPatch }) =>
+      api.tasks.update(project.id, id, patch),
+    onSuccess: () => invalidate(qc, ['tasks']),
+  })
+}
+
+export function useToggleChecklist() {
+  const qc = useQueryClient()
+  const { project } = useSession()
+  const actor = useActor()
+  return useMutation({
+    mutationFn: ({ id, itemId, done }: { id: string; itemId: string; done: boolean }) =>
+      api.tasks.toggleChecklist(project.id, id, itemId, done, actor),
+    onSuccess: () => invalidate(qc, ['tasks']),
+  })
+}
+
+export function useSetTaskReady() {
+  const qc = useQueryClient()
+  const { project } = useSession()
+  const actor = useActor()
+  return useMutation({
+    mutationFn: ({ id, ready }: { id: string; ready: boolean }) =>
+      api.tasks.setReady(project.id, id, ready, actor),
+    onSuccess: () => invalidate(qc, ['tasks']),
+  })
+}
+
+export function useSetTaskTechOk() {
+  const qc = useQueryClient()
+  const { project } = useSession()
+  const actor = useActor()
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.tasks.setTechOk(project.id, id, actor),
+    onSuccess: () => invalidate(qc, ['tasks']),
+  })
+}
+
+export function useAdvanceTask() {
+  const qc = useQueryClient()
+  const { project } = useSession()
+  const actor = useActor()
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.tasks.advance(project.id, id, actor),
+    // A refused advance writes nothing, so only refresh when one landed.
+    onSuccess: (res) => res.ok && invalidate(qc, ['tasks']),
   })
 }
 
@@ -79,8 +144,13 @@ export function useAddTaskComment(taskId: string) {
   const qc = useQueryClient()
   const actor = useActor()
   return useMutation({
-    mutationFn: (text: string) => api.tasks.addComment(taskId, actor, text),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['taskComments', taskId] }),
+    mutationFn: ({ text, photos }: { text: string; photos?: NewPhotoInput[] }) =>
+      api.tasks.addComment(taskId, actor, text, photos),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ['taskComments', taskId] }),
+        qc.invalidateQueries({ queryKey: ['taskPhotos', taskId] }),
+      ]),
   })
 }
 

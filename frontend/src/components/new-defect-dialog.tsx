@@ -13,6 +13,7 @@ import type { Annotation } from '@/lib/annotate'
 import { preparePhoto, type PhotoSource, type PreparedPhoto } from '@/lib/image'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PhotoAnnotator } from '@/components/photo-annotator'
+import { useHasCamera } from '@/components/photo-picker'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -34,23 +35,6 @@ const CHANNELS = [
 ] as const
 
 type ChannelId = (typeof CHANNELS)[number]['id']
-
-/**
- * True on phones and tablets. A coarse pointer is the signal that `capture` will
- * actually open a camera — on a desktop the attribute is ignored and the button
- * would just be a second, identical file picker.
- */
-function useHasCamera(): boolean {
-  const [coarse, setCoarse] = useState(false)
-  useEffect(() => {
-    const mq = window.matchMedia('(pointer: coarse)')
-    const sync = () => setCoarse(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-  return coarse
-}
 
 function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (

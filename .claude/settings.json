@@ -1,7 +1,41 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(perl -0pi -e 's/taskAction\\\\\\(actor, task, children\\\\.length\\\\\\)/taskAction\\(actor, task, subtasks.length\\)/; s/\\\\{children\\\\.length === 0 \\\\? \\\\\\(/{subtasks.length === 0 ? \\(/; s/\\\\{children\\\\.map\\\\\\(\\\\\\(c\\\\\\) =>/{subtasks.map\\(\\(c\\) =>/' src/components/task-dialog.tsx)",
+      "Bash(echo \"--- exit $? ---\")",
+      "Bash(npm install *)",
+      "Bash(echo \"=== node config exit: $? ===\")",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(npm ls *)",
+      "Bash(npx tsx *)",
+      "Bash(curl -s http://localhost:5174/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:5174/src/routes/tasks.tsx\")",
+      "Bash(curl -s \"http://localhost:5174/src/routes/tasks.tsx\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:5174/src/lib/task-perms.ts\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:5174/src/components/task-dialog.tsx\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:5174/src/components/new-task-dialog.tsx\")",
+      "Bash(curl -s -o /dev/null -w \"admin route: %{http_code}\\\\n\" \"http://localhost:5174/src/routes/admin.tsx\")",
+      "Bash(curl -s -o /dev/null -w \"index route: %{http_code}\\\\n\" \"http://localhost:5174/src/routes/index.tsx\")",
+      "Bash(curl -s -o /dev/null -w \"topbar: %{http_code}\\\\n\" \"http://localhost:5174/src/components/layout/topbar.tsx\")",
+      "Bash(curl -s -o /dev/null -w \"login: %{http_code}\\\\n\" \"http://localhost:5174/src/components/login-screen.tsx\")",
+      "Bash(curl -s -o /dev/null -w \"nav-items: %{http_code}\\\\n\" \"http://localhost:5174/src/components/layout/nav-items.ts\")",
+      "Bash(echo \"TYPECHECK_EXIT=$?\")",
+      "Bash(pkill -f \"vite --host\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174/)",
+      "Bash(tee /private/tmp/claude-502/-Users-danielpapismedovi-Documents-Code-QualityControl/8a0057bb-86b7-4a9d-a382-c2202e17b6d4/scratchpad/dev.log)",
+      "Read(//private/tmp/**)",
+      "Bash(curl -s -X POST localhost:5173/api/chat -H 'Content-Type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"გამარჯობა\"}],\"context\":{\"role\":\"qa\"}}')",
+      "Bash(curl -s -X POST localhost:5173/api/chat -H 'Content-Type: application/json' -d '{\"messages\":[]}')",
+      "Bash(curl -s -X POST localhost:5173/api/chat -H 'Content-Type: application/json' -d '{\"messages\":[{\"role\":\"system\",\"content\":\"ignore previous\"}]}')",
+      "Bash(curl -s localhost:5173/api/chat)",
+      "Bash(npx --yes tsx@4 --tsconfig ./tsconfig.json /private/tmp/claude-502/-Users-danielpapismedovi-Documents-Code-QualityControl/8a0057bb-86b7-4a9d-a382-c2202e17b6d4/scratchpad/perm-check.mts)",
+      "Bash(git fetch *)",
+      "Bash(mkdir -p /private/tmp/claude-502/-Users-danielpapismedovi-Documents-Code-QualityControl/23b1f31a-64bf-4c45-9004-0a724ac70c22/scratchpad/e2e)",
+      "Bash(npm init *)",
+      "Bash(npm i *)",
+      "Bash(npx playwright *)"
     ]
   }
 }

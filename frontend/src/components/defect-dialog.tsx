@@ -17,7 +17,9 @@ import {
 } from '@/data/domain'
 import { cn, formatStamp, initials } from '@/lib/utils'
 
-const PHOTO_KIND: Record<Photo['kind'], string> = { before: 'BEFORE', after: 'AFTER' }
+// `task` never appears here — task photos live on their own thread — but the
+// kind is shared with them, so the map has to cover it.
+const PHOTO_KIND: Record<Photo['kind'], string> = { before: 'BEFORE', after: 'AFTER', task: 'დავალება' }
 
 /** The four stages of the process strip, one per status in `DEFECT_FLOW`. */
 const TIMELINE_STEPS: { st: DefectStatus; t: string }[] = [

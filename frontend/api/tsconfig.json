@@ -18,5 +18,12 @@
   },
   // Only what the function actually pulls in. `server/plugin.ts` is deliberately
   // left out — it imports Vite, which has no business in a serverless bundle.
-  "include": [".", "../server/notify.ts", "../server/team.ts", "../server/template.ts"]
+  "include": [
+    ".",
+    "../server/notify.ts",
+    "../server/team.ts",
+    "../server/template.ts",
+    "../server/chat.ts",
+    "../server/chat-tools.ts"
+  ]
 }

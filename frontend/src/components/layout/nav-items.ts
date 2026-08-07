@@ -3,8 +3,9 @@ import {
   Archive, BookMarked, CalendarRange, FileText,
   LayoutDashboard, Map, Settings2, SquareCheck, TriangleAlert,
 } from 'lucide-react'
-import { defectsQuery } from '@/api/queries'
-import { useSession } from '@/lib/session'
+import { defectsQuery, tasksQuery } from '@/api/queries'
+import { useSession, useTaskActor } from '@/lib/session'
+import { visibleTasks } from '@/lib/task-perms'
 
 export interface NavItem {
   to: string
@@ -22,8 +23,13 @@ export interface NavGroup {
 /** Nav model shared by the desktop sidebar and the mobile drawer. */
 export function useNavGroups(): NavGroup[] {
   const { role, project } = useSession()
+  const actor = useTaskActor()
   const { data: defects } = useQuery(defectsQuery(project.id))
   const openQa = defects?.filter((d) => d.st !== 'დახურული').length ?? 0
+  const { data: tasks } = useQuery(tasksQuery(project.id))
+  // Counts what this role can actually open — a badge promising work a
+  // supervisor cannot see reads as a broken link.
+  const openTasks = visibleTasks(actor, tasks ?? []).filter((t) => t.col !== 'done').length
 
   return [
     {
@@ -38,7 +44,7 @@ export function useNavGroups(): NavGroup[] {
       label: 'ოპერაციები',
       items: [
         { to: '/qa', label: 'QA/QC ხარვეზები', icon: TriangleAlert, count: openQa },
-        { to: '/tasks', label: 'დავალებები', icon: SquareCheck, count: 7 },
+        { to: '/tasks', label: 'დავალებები', icon: SquareCheck, count: openTasks },
         { to: '/standards', label: 'სტანდარტები', icon: BookMarked },
         { to: '/drawings', label: 'ნახაზები', icon: FileText },
         { to: '/archive', label: 'დოკ. არქივი', icon: Archive },

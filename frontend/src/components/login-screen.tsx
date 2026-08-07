@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { ROLES, type RoleId } from '@/data/domain'
-import { useSession } from '@/lib/session'
+import { QA_TEAM, ROLES, type RoleId } from '@/data/domain'
+import { needsPerson, useSession } from '@/lib/session'
 
 const LABEL = 'mb-1.5 block text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mut'
 const FIELD = 'w-full rounded-lg border border-line-2 bg-card px-3 py-2.5 text-sm'
@@ -19,18 +19,21 @@ const STATS = [
 ]
 
 /** Roles that must clear a second factor before entering. */
-const NEEDS_2FA: RoleId[] = ['admin', 'techdir', 'pmdir']
+const NEEDS_2FA: RoleId[] = ['admin', 'techdir', 'pmdir', 'pfm']
 
 export function LoginScreen() {
   const { login } = useSession()
   const navigate = useNavigate()
   const [roleId, setRoleId] = useState<RoleId>('pm')
+  // Tasks are assigned to a person, so a supervisor has to say which one they
+  // are — the role alone would not decide whose board this is.
+  const [personId, setPersonId] = useState<string>(QA_TEAM[0]!.id)
   const [step, setStep] = useState<1 | 2>(1)
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const finish = () => {
-    login(roleId)
+    login(roleId, personId)
     navigate({ to: '/' })
   }
 
@@ -127,6 +130,26 @@ export function LoginScreen() {
                   ))}
                 </select>
               </div>
+
+              {needsPerson(roleId) && (
+                <div className="mb-5">
+                  <label className={LABEL} htmlFor="login-person">
+                    ვინ ხართ (დემო)
+                  </label>
+                  <select
+                    id="login-person"
+                    className={`${FIELD} cursor-pointer`}
+                    value={personId}
+                    onChange={(e) => setPersonId(e.target.value)}
+                  >
+                    {QA_TEAM.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <button
                 className="w-full cursor-pointer rounded-lg bg-brand py-2.75 text-sm font-bold text-white shadow-[0_4px_12px_rgba(255,77,0,0.25)] transition-colors hover:bg-brand-hover"

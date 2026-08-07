@@ -1,26 +1,33 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { Bell, LogOut, Moon, Search, Sun } from 'lucide-react'
-import { PROJECTS, ROLES, type ProjectId, type RoleId } from '@/data/domain'
-import { useSession } from '@/lib/session'
+import { Bell, LogOut, Moon, Search, Sparkles, Sun } from 'lucide-react'
+import { PROJECTS, QA_TEAM, ROLES, type ProjectId, type RoleId } from '@/data/domain'
+import { needsPerson, useSession } from '@/lib/session'
 import { useTheme } from '@/lib/theme'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { NotificationPanel } from '@/components/notifications'
 import { SearchDialog } from '@/components/search-dialog'
+import { ChatPanel } from '@/components/chat-panel'
 
 export function Topbar() {
-  const { role, project, setProject, setRole, logout } = useSession()
+  const { role, person, project, setProject, setRole, setPerson, logout } = useSession()
   const { theme, toggle } = useTheme()
   const navigate = useNavigate()
   const [searchOpen, setSearchOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if (!(e.metaKey || e.ctrlKey)) return
+      const k = e.key.toLowerCase()
+      if (k === 'k') {
         e.preventDefault()
         setSearchOpen(true)
+      } else if (k === 'j') {
+        e.preventDefault()
+        setChatOpen((o) => !o)
       }
     }
     document.addEventListener('keydown', onKey)
@@ -73,6 +80,16 @@ export function Topbar() {
           <Search className="h-4 w-4" />
         </button>
 
+        {/* The assistant reads the same data the screens do and answers with a
+            link into them, so it belongs beside search rather than in the nav. */}
+        <button
+          onClick={() => setChatOpen(true)}
+          title="ასისტენტი — ⌘J"
+          className="grid h-8.5 w-8.5 cursor-pointer place-items-center rounded-lg text-mut-3 hover:bg-soft"
+        >
+          <Sparkles className="h-4 w-4" />
+        </button>
+
         <button
           onClick={toggle}
           title="თემის შეცვლა"
@@ -114,13 +131,31 @@ export function Topbar() {
           </SelectContent>
         </Select>
 
+        {/* Which supervisor is on shift. Only the two personal roles get it —
+            a task board is one person's, and the demo has to be able to switch
+            between them without logging out. */}
+        {needsPerson(role?.id) && (
+          <Select value={person?.id} onValueChange={setPerson}>
+            <SelectTrigger className="hidden w-44 nav:flex">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {QA_TEAM.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
         <div className="flex items-center gap-2.5 border-l border-line pl-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-xs font-extrabold text-brand-dark">
             {role?.ini}
           </div>
           <div className="hidden nav:block">
-            <div className="text-xs font-bold leading-tight">{role?.name}</div>
-            <div className="text-[10px] text-mut">{role?.scope}</div>
+            <div className="text-xs font-bold leading-tight">{person?.name ?? role?.name}</div>
+            <div className="text-[10px] text-mut">{person ? role?.name : role?.scope}</div>
           </div>
           <Button variant="ghost" size="icon" onClick={logout} title="გასვლა">
             <LogOut className="h-4 w-4" />
@@ -129,6 +164,7 @@ export function Topbar() {
       </div>
 
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
+      {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
     </header>
   )
 }

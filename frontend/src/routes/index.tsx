@@ -57,7 +57,7 @@ function DashboardPage() {
   const toast = useToast()
   const { data: apts } = useSuspenseQuery(apartmentsQuery(project.id))
   const { data: defects } = useSuspenseQuery(defectsQuery(project.id))
-  const { data: tasks } = useSuspenseQuery(tasksQuery())
+  const { data: tasks } = useSuspenseQuery(tasksQuery(project.id))
 
   const avg = Math.round(apts.reduce((s, a) => s + a.prog, 0) / apts.length)
   const done = apts.filter((a) => a.prog >= 100).length
@@ -88,23 +88,25 @@ function DashboardPage() {
     .slice(0, 8)
   const maxCat = topCats[0]?.n ?? 1
 
+  // Unassigned rows sit in `უფროსის მოთხოვნა` waiting to be broken down — they
+  // are nobody's load yet, so they do not belong in the per-person bars.
   const workload = new Map<string, number>()
   tasks.forEach((t) => {
-    if (t.col !== 'done') workload.set(t.who, (workload.get(t.who) ?? 0) + 1)
+    if (t.col !== 'done' && t.who) workload.set(t.who, (workload.get(t.who) ?? 0) + 1)
   })
+  const activeTasks = tasks.filter((t) => t.col !== 'done').length
 
   const kpis = [
     { l: 'მთლიანი პროგრესი', v: `${avg}%`, d: `გეგმა: ${avg + 6}% — ჩამორჩენა 6 პპ`, bar: avg, barColor: 'var(--color-brand)' },
     { l: 'ჩაბარებული ბინა', v: `${done} / ${apts.length}`, d: 'Handover აქტით დადასტურებული', bar: Math.round((done / apts.length) * 100), barColor: 'var(--color-tone-ok-solid)' },
     { l: 'ღია ხარვეზი', v: `${open}`, d: `${highOpen} მაღალი პრიორიტეტის`, bar: 56, barColor: 'var(--color-tone-open-solid)', red: true },
-    { l: 'აქტიური დავალება', v: '7', d: '1 ვადაგადაცილებული · 6 თანამშრომელი', bar: 64, barColor: 'var(--color-tone-info-solid)' },
+    { l: 'აქტიური დავალება', v: `${activeTasks}`, d: `${workload.size} თანამშრომელი`, bar: Math.min(100, activeTasks * 8), barColor: 'var(--color-tone-info-solid)' },
   ]
 
   // `go` routes each row to the record it refers to: defects deep-link into the
   // QA log, the task into the assignee's board, the drawing into the register.
   const overdue = [
     { id: 'QA-0903-021', t: 'Electrical — კაბელის კვეთა', who: 'შპს ტექნო-ინსტალაცია', d: '−8 დღე', bad: true, go: () => navigate({ to: '/qa', search: { id: 'QA-0903-021' } }) },
-    { id: 'T-2104', t: 'კაბელების დაქსელვის შემოწმება — მე-11', who: 'ი. მაისურაძე', d: '−5 დღე', bad: true, go: () => navigate({ to: '/tasks', search: { who: 'ი. მაისურაძე' } }) },
     { id: 'QA-0611-017', t: 'Plumbing — მილის დახრილობა', who: 'ი/მ ჯ. წიკლაური', d: '−2 დღე', bad: false, go: () => navigate({ to: '/qa', search: { id: 'QA-0611-017' } }) },
     { id: 'MEP-E-09', t: 'rev. C — ვიზირება ელოდება', who: 'ტექ. დირექტორი', d: 'დღეს', bad: false, go: () => navigate({ to: '/drawings' }) },
   ]
@@ -204,7 +206,7 @@ function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-danger">ვადაგადაცილებული · 4</CardTitle>
+            <CardTitle className="text-danger">ვადაგადაცილებული · {overdue.length}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
             {overdue.map((r) => (

@@ -44,11 +44,14 @@ export const aptStagesQuery = (proj: ProjectId, no: string) =>
     queryFn: () => api.stages.forApartment(proj, no),
   })
 
-export const tasksQuery = () =>
-  queryOptions({ queryKey: ['tasks'], queryFn: () => api.tasks.list() })
+export const tasksQuery = (proj: ProjectId) =>
+  queryOptions({ queryKey: ['tasks', proj], queryFn: () => api.tasks.list(proj) })
 
 export const taskCommentsQuery = (taskId: string) =>
   queryOptions({ queryKey: ['taskComments', taskId], queryFn: () => api.tasks.comments(taskId) })
+
+export const taskPhotosQuery = (taskId: string) =>
+  queryOptions({ queryKey: ['taskPhotos', taskId], queryFn: () => api.tasks.photos(taskId) })
 
 export const standardsQuery = () =>
   queryOptions({ queryKey: ['standards'], queryFn: () => api.standards.list() })

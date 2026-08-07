@@ -8,11 +8,11 @@
 // single transaction.
 
 import {
-  STAGE_CATS, TODAY, nextStageStatus, progressFromStages,
+  STAGE_CATS, TODAY, nextStageStatus, nextTaskColumn, progressFromStages,
   type Apartment, type ArchiveRow, type Defect, type DefectComment,
   type DefectStatus, type DocRow, type Priority, type ProjectId, type Stage,
-  type StageName, type Standard, type Task, type TaskColumn, type TaskComment,
-  type UserRow,
+  type StageName, type Standard, type Task, type TaskChecklistItem,
+  type TaskColumn, type TaskComment, type TaskTrack, type UserRow,
 } from '@/data/domain'
 import type { Annotation } from '@/lib/annotate'
 import { blobBytes } from '@/lib/image'
@@ -159,6 +159,72 @@ export interface NewDefectInput {
   desc: string
   /** Evidence attached at filing time. Stored with the defect, in one transaction. */
   photos?: NewPhotoInput[]
+}
+
+export interface NewTaskInput {
+  title: string
+  desc: string
+  track: TaskTrack
+  /** `req` or `new` — which one the caller may pick is a UI rule. */
+  col: TaskColumn
+  pri: Priority
+  floors: number[]
+  apts: string[]
+  /** `QA_TEAM` id, or null while a request has no executor yet. */
+  whoId: string | null
+  /** Display name for `whoId`. Ignored when `whoId` is null. */
+  who: string
+  /** The request this task was broken out of. */
+  parentId?: string
+  /** Checklist texts. Ids and tick state are minted here. */
+  checklist?: string[]
+}
+
+/** The ticket's own fields. `col`, `gate` and `history` move only via `advance`. */
+export interface TaskPatch {
+  title?: string
+  desc?: string
+  pri?: Priority
+  floors?: number[]
+  apts?: string[]
+  whoId?: string | null
+  who?: string
+  checklist?: TaskChecklistItem[]
+}
+
+/**
+ * Why a move was refused. `assignee` and `breakdown` guard the request step —
+ * a task nobody owns and nothing to do is not work; `ready` is the missing
+ * supervisor sign-off; `tech` is the technical vouch a main-track task needs
+ * before it can close.
+ */
+export type TaskBlock = 'assignee' | 'breakdown' | 'ready' | 'tech'
+
+export interface TaskAdvanceResult {
+  ok: boolean
+  task: Task | null
+  blockedBy: TaskBlock | null
+}
+
+/** The gate standing between a task and the column it is trying to enter. */
+async function taskBlocker(
+  backend: Backend<StoreName>,
+  task: TaskRow,
+  to: TaskColumn,
+): Promise<TaskBlock | null> {
+  if (to === 'new') {
+    if (!task.whoId) return 'assignee'
+    if (task.checklist.length === 0) {
+      const siblings = await backend.getAll<TaskRow>('tasks', 'by-project', task.proj)
+      if (!siblings.some((t) => t.parentId === task.id)) return 'breakdown'
+    }
+    return null
+  }
+  // Starting the work is the supervisor's own call — nothing to sign yet.
+  if (to === 'prog') return null
+  if (!task.gate.ready) return 'ready'
+  if (to === 'done' && task.track === 'main' && !task.gate.techOk) return 'tech'
+  return null
 }
 
 export const api = {
@@ -366,18 +432,145 @@ export const api = {
   },
 
   tasks: {
-    async list(): Promise<Task[]> {
+    async list(proj: ProjectId): Promise<Task[]> {
       const backend = await db()
-      return byOrd(await backend.getAll<TaskRow>('tasks'))
+      return byOrd(await backend.getAll<TaskRow>('tasks', 'by-project', proj))
     },
 
-    async setColumn(id: string, col: TaskColumn): Promise<Task | null> {
+    async create(proj: ProjectId, input: NewTaskInput, actor: string): Promise<Task> {
+      const backend = await db()
+      // Ids are unique across the whole store, not per project — the store is
+      // keyed on `id` alone, so a per-project counter would eventually collide.
+      const all = await backend.getAll<TaskRow>('tasks')
+      const max = all.reduce((m, t) => {
+        const n = Number(t.id.slice(2))
+        return Number.isFinite(n) ? Math.max(m, n) : m
+      }, 2100)
+      const id = `T-${max + 1}`
+
+      const who = input.whoId ? input.who : ''
+      const row: TaskRow = {
+        proj,
+        // Newest first, as on the QA list.
+        ord: prevOrd(all),
+        id,
+        title: input.title,
+        desc: input.desc,
+        track: input.track,
+        col: input.col,
+        pri: input.pri,
+        floors: input.floors,
+        apts: input.apts,
+        whoId: input.whoId,
+        who,
+        by: actor,
+        ...(input.parentId ? { parentId: input.parentId } : {}),
+        checklist: (input.checklist ?? [])
+          .map((t) => t.trim())
+          .filter(Boolean)
+          .map((text, i) => ({ id: `${id}-c${i + 1}`, text, done: false, by: '', at: '' })),
+        gate: {},
+        history: [{ col: input.col, at: new Date().toISOString(), who: actor }],
+      }
+      await backend.write([{ store: 'tasks', put: row }])
+      return row
+    },
+
+    /** Edits the ticket's own fields. Never touches `col`, `gate` or `history`. */
+    async update(proj: ProjectId, id: string, patch: TaskPatch): Promise<Task | null> {
       const backend = await db()
       const current = await backend.get<TaskRow>('tasks', id)
-      if (!current) return null
-      const next: TaskRow = { ...current, col }
+      if (!current || current.proj !== proj) return null
+      const next: TaskRow = { ...current, ...patch }
+      // An assignee cleared by id has to lose the display name with it, or the
+      // card would show a person nobody is actually responsible to.
+      if (patch.whoId === null) next.who = ''
       await backend.write([{ store: 'tasks', put: next }])
       return next
+    },
+
+    async toggleChecklist(
+      proj: ProjectId,
+      id: string,
+      itemId: string,
+      done: boolean,
+      actor: string,
+    ): Promise<Task | null> {
+      const backend = await db()
+      const current = await backend.get<TaskRow>('tasks', id)
+      if (!current || current.proj !== proj) return null
+      const at = new Date().toISOString()
+      const next: TaskRow = {
+        ...current,
+        checklist: current.checklist.map((i) =>
+          i.id === itemId ? { ...i, done, by: done ? actor : '', at: done ? at : '' } : i,
+        ),
+      }
+      await backend.write([{ store: 'tasks', put: next }])
+      return next
+    },
+
+    /** The supervisor's signature that the current step is finished. */
+    async setReady(proj: ProjectId, id: string, ready: boolean, actor: string): Promise<Task | null> {
+      const backend = await db()
+      const current = await backend.get<TaskRow>('tasks', id)
+      if (!current || current.proj !== proj) return null
+      const { ready: _, ...rest } = current.gate
+      const next: TaskRow = {
+        ...current,
+        gate: ready ? { ...rest, ready: { by: actor, at: new Date().toISOString() } } : rest,
+      }
+      await backend.write([{ store: 'tasks', put: next }])
+      return next
+    },
+
+    /** The technical side vouching a main-track task may close. Sticky. */
+    async setTechOk(proj: ProjectId, id: string, actor: string): Promise<Task | null> {
+      const backend = await db()
+      const current = await backend.get<TaskRow>('tasks', id)
+      if (!current || current.proj !== proj) return null
+      const next: TaskRow = {
+        ...current,
+        gate: { ...current.gate, techOk: { by: actor, at: new Date().toISOString() } },
+      }
+      await backend.write([{ store: 'tasks', put: next }])
+      return next
+    },
+
+    /**
+     * Moves a task one step along `TASK_FLOW`. The gates are checked here and
+     * not only in the UI: a button can be disabled, but the rule is what makes
+     * a დასრულებული task mean something.
+     */
+    async advance(proj: ProjectId, id: string, actor: string): Promise<TaskAdvanceResult> {
+      const backend = await db()
+      const current = await backend.get<TaskRow>('tasks', id)
+      if (!current || current.proj !== proj) return { ok: false, task: null, blockedBy: null }
+
+      const col = nextTaskColumn(current.col)
+      if (!col) return { ok: false, task: current, blockedBy: null }
+
+      const blocked = await taskBlocker(backend, current, col)
+      if (blocked) return { ok: false, task: current, blockedBy: blocked }
+
+      // Every step is signed afresh, so the supervisor's sign-off does not ride
+      // along into the next column.
+      const { ready: _, ...gate } = current.gate
+      const next: TaskRow = {
+        ...current,
+        col,
+        gate,
+        history: [...(current.history ?? []), { col, at: new Date().toISOString(), who: actor }],
+      }
+      await backend.write([{ store: 'tasks', put: next }])
+      return { ok: true, task: next, blockedBy: null }
+    },
+
+    /** Sub-tasks broken out of one request, in board order. */
+    async children(proj: ProjectId, parentId: string): Promise<Task[]> {
+      const backend = await db()
+      const rows = await backend.getAll<TaskRow>('tasks', 'by-project', proj)
+      return byOrd(rows.filter((t) => t.parentId === parentId))
     },
 
     async comments(taskId: string): Promise<TaskComment[]> {
@@ -385,7 +578,18 @@ export const api = {
       return byOrd(await backend.getAll<TaskCommentRow>('taskComments', 'by-task', taskId))
     },
 
-    async addComment(taskId: string, who: string, text: string): Promise<TaskComment> {
+    /** Photos posted on one task, across all of its comments. */
+    async photos(taskId: string): Promise<Photo[]> {
+      const backend = await db()
+      return byOrd(await backend.getAll<PhotoRow>('photos', 'by-task', taskId)).map(toPhoto)
+    },
+
+    async addComment(
+      taskId: string,
+      who: string,
+      text: string,
+      photos: NewPhotoInput[] = [],
+    ): Promise<TaskComment> {
       const backend = await db()
       const existing = await backend.getAll<TaskCommentRow>('taskComments', 'by-task', taskId)
       const comment: TaskCommentRow = {
@@ -396,7 +600,32 @@ export const api = {
         at: new Date().toISOString(),
         text,
       }
-      await backend.write([{ store: 'taskComments', put: comment }])
+
+      // Decoded before the transaction opens — an await inside a live
+      // IndexedDB transaction would auto-close it.
+      const priorPhotos = await backend.getAll<PhotoRow>('photos', 'by-task', taskId)
+      const rows: PhotoRow[] = await Promise.all(
+        photos.map(async (p, i) => ({
+          id: p.id,
+          taskId,
+          commentId: comment.id,
+          ord: nextOrd(priorPhotos) + i,
+          kind: 'task' as const,
+          name: p.name,
+          at: p.at,
+          source: p.source,
+          w: p.w,
+          h: p.h,
+          bytes: await blobBytes(p.blob),
+          type: p.blob.type || 'image/jpeg',
+          ...(p.annotations?.length ? { annotations: p.annotations } : {}),
+        })),
+      )
+
+      await backend.write([
+        { store: 'taskComments', put: comment },
+        ...rows.map((put): Op => ({ store: 'photos', put })),
+      ])
       return comment
     },
   },

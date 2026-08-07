@@ -28,12 +28,14 @@ const PERMS: Record<string, number[]> = {
   admin: [1, 1, 1, 1, 1, 1, 1],
   techdir: [1, 1, 1, 1, 1, 1, 0],
   pmdir: [1, 1, 1, 1, 1, 1, 0],
+  pfm: [1, 1, 1, 1, 1, 1, 0],
   pm: [1, 1, 1, 1, 1, 1, 0],
-  qa: [1, 1, 1, 1, 1, 0, 0],
-  techsup: [1, 1, 1, 1, 1, 0, 0],
+  // Supervisors report against tasks, they do not author them — partial.
+  qa: [1, 1, 1, 2, 1, 0, 0],
+  techsup: [1, 1, 1, 2, 1, 0, 0],
 }
-const HEAD = ['ადმინი', 'ტექ.დირ', 'პრ.დირ', 'PM', 'QA', 'ტექ.ზედ']
-const ROLE_KEYS = ['admin', 'techdir', 'pmdir', 'pm', 'qa', 'techsup']
+const HEAD = ['ადმინი', 'ტექ.დირ', 'პრ.დირ', 'პორტფ.', 'PM', 'QA', 'ტექ.ზედ']
+const ROLE_KEYS = ['admin', 'techdir', 'pmdir', 'pfm', 'pm', 'qa', 'techsup']
 
 function AdminPage() {
   const { data: users } = useSuspenseQuery(usersQuery())
