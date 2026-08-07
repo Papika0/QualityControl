@@ -750,7 +750,13 @@ function Cell({
       className={cn(
         'relative cursor-pointer overflow-hidden border bg-soft-2 text-left transition-all',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ring',
-        size === 'sm' ? 'h-6 rounded-[3px]' : 'flex h-20 flex-col justify-end rounded-lg bg-card p-2',
+        size === 'sm'
+          ? // `@container`: how much of the number fits is a property of this
+            // cell, not the viewport. A floor of 18 units gives each one ~26px
+            // at the nav breakpoint and ~90px on a wide monitor, and the same
+            // screen shows narrower cells on the fuller floors.
+            'flex h-6 items-center justify-center rounded-[3px] @container'
+          : 'flex h-20 flex-col justify-end rounded-lg bg-card p-2',
         on ? 'border-brand ring-2 ring-brand-ring' : 'border-line hover:border-brand/60',
         dim && 'opacity-25',
       )}
@@ -780,12 +786,24 @@ function Cell({
           </span>
         </>
       ) : (
-        // At elevation scale only the exception gets a marker — everything else
-        // is carried by the fill itself.
-        apt.defects > 0 &&
-        mode !== 'defects' && (
-          <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-tone-open-solid" />
-        )
+        <>
+          {/* The unit index always, the floor prefix only once there is room
+              for it — the row is already labelled with its floor, so `04` is
+              never ambiguous, and `1204` is what people actually search for. */}
+          {/* Thresholds are content-box widths, so they sit ~2px under the
+              cell width the grid hands out. `1204` measures ~22px at 9px in
+              this mono face; 32 leaves it room to breathe. */}
+          <span className="relative hidden font-mono text-[9px] font-semibold leading-none tabular-nums text-mut-3 @min-[20px]:block">
+            <span className="hidden @min-[32px]:inline">{apt.no.slice(0, -2)}</span>
+            {apt.no.slice(-2)}
+          </span>
+
+          {/* At elevation scale only the exception gets a marker — everything
+              else is carried by the fill itself. */}
+          {apt.defects > 0 && mode !== 'defects' && (
+            <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-tone-open-solid" />
+          )}
+        </>
       )}
     </button>
   )
