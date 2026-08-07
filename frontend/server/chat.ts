@@ -20,9 +20,21 @@ const ENDPOINT = 'https://api.openai.com/v1/chat/completions'
  * is what stops a tampered request from spending the key on the most expensive
  * model in the catalogue.
  */
-const ALLOWED_MODELS = ['gpt-5-mini', 'gpt-5', 'gpt-4.1-mini', 'gpt-4o-mini']
+const ALLOWED_MODELS = ['gpt-4.1-mini', 'gpt-5', 'gpt-5-mini', 'gpt-4o-mini']
 
-const DEFAULT_MODEL = 'gpt-5-mini'
+/**
+ * Chosen on Georgian, not on benchmarks. The answers here are read by people
+ * who speak it, and the mini reasoning model wrote sentences that inverted
+ * their own meaning — `შეაჩერე` (stop) where the button says `დაიწყე` (start) —
+ * along with words that are not words. Raising its reasoning effort changed
+ * the failures without removing them, and doubled the bill doing it.
+ *
+ * `gpt-4.1-mini` writes clean Georgian first time, cites the right ids and
+ * costs less than the model it replaced. `gpt-5` is better still if the budget
+ * ever justifies it; `gpt-4o-mini` is cheapest and invents absolute URLs that
+ * this app then refuses to link.
+ */
+const DEFAULT_MODEL = 'gpt-4.1-mini'
 
 /**
  * The GPT-5 family reasons before it answers, and that costs two things a

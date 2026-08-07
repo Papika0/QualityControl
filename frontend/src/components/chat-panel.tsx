@@ -56,6 +56,42 @@ function startersFor(role: string | undefined): string[] {
 const INLINE =
   /\[([^\]]+)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*|(?<![([\w])(\/(?:map|qa|tasks|apartments|standards|schedule|drawings|archive|admin)(?:\/[^\s,;)]+)?(?:\?[^\s,;)]*)?)/g
 
+/**
+ * A readable name for a bare path. Using the path itself was the obvious thing
+ * and it was wrong: `/qa?who=გუჯი გვენცაძე` arrives percent-encoded, so the
+ * label came out as two hundred characters of `%E1%83…` that overflowed the
+ * bubble. The model is asked to name its links; when it does not, this names
+ * them instead.
+ */
+function labelFor(href: string): string {
+  const [path, qs] = href.split('?')
+  const params = new URLSearchParams(qs ?? '')
+  const of = (k: string) => {
+    const v = params.get(k)
+    if (!v) return ''
+    try {
+      return decodeURIComponent(v)
+    } catch {
+      return v
+    }
+  }
+
+  if (path === '/map') {
+    const floor = of('floor')
+    return floor ? `სართული ${floor}` : 'პროექტის რუკა'
+  }
+  if (path?.startsWith('/apartments/')) return `ბინა ${decodeURIComponent(path.slice(12))}`
+  if (path?.startsWith('/standards/')) return `სტანდარტი ${decodeURIComponent(path.slice(11))}`
+  if (path === '/qa') return of('id') ? `ხარვეზი ${of('id')}` : 'ხარვეზები'
+  if (path === '/tasks') return of('id') ? `დავალება ${of('id')}` : 'დავალებები'
+  if (path === '/standards') return 'სტანდარტები'
+  if (path === '/schedule') return 'გეგმა-გრაფიკი'
+  if (path === '/drawings') return 'ნახაზები'
+  if (path === '/archive') return 'დოკუმენტების არქივი'
+  if (path === '/admin') return 'ადმინისტრირება'
+  return 'გახსნა'
+}
+
 function Inline({ text, onGo }: { text: string; onGo: (href: string) => void }) {
   const parts: React.ReactNode[] = []
   let last = 0
@@ -65,9 +101,9 @@ function Inline({ text, onGo }: { text: string; onGo: (href: string) => void }) 
   while ((m = INLINE.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index))
     const [, mdLabel, mdHref, bold, bare] = m
-    // A bare path is its own label — there is nothing else to call it.
-    const label = mdLabel ?? bare
     const href = mdHref ?? bare
+    // A bare path gets a name rather than showing its own query string.
+    const label = mdLabel ?? (bare ? labelFor(bare) : undefined)
 
     if (bold) {
       parts.push(
@@ -80,15 +116,18 @@ function Inline({ text, onGo }: { text: string; onGo: (href: string) => void }) 
         <button
           key={parts.length}
           onClick={() => onGo(href)}
-          className="cursor-pointer font-semibold text-brand underline decoration-brand/35 underline-offset-2 hover:decoration-brand"
+          // `text-left` and the wrap: a label is a phrase, and inside a narrow
+          // bubble it has to break like one rather than run off the edge.
+          className="cursor-pointer text-left font-semibold text-brand underline decoration-brand/35 underline-offset-2 break-words hover:decoration-brand"
         >
           {label}
         </button>,
       )
     } else {
       // A link to a route that does not exist — the model invented it. Show the
-      // words, drop the link, so nothing is clickable that goes nowhere.
-      parts.push(label ?? m[0])
+      // words, drop the link, so nothing is clickable that goes nowhere. The
+      // raw match, not a friendly name: naming it would dress up a dead end.
+      parts.push(mdLabel ?? m[0])
     }
     last = m.index + m[0].length
   }
@@ -291,7 +330,11 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
             <div
               key={i}
               className={cn(
-                'max-w-[92%] rounded-xl px-3 py-2 text-[12.5px] leading-relaxed',
+                // `min-w-0` + `break-words`: an answer can carry an id, a code
+                // or an encoded address with no space in it, and a single
+                // unbreakable run would otherwise push the bubble past the
+                // panel instead of wrapping inside it.
+                'max-w-[92%] min-w-0 overflow-hidden rounded-xl px-3 py-2 text-[12.5px] leading-relaxed break-words',
                 b.role === 'user'
                   ? 'ml-auto bg-brand-soft text-brand-dark'
                   : b.failed
