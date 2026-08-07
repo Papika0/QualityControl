@@ -36,6 +36,20 @@ const DEFAULT_MODEL = 'gpt-5-mini'
  */
 const isReasoning = (model: string) => model.startsWith('gpt-5')
 
+const EFFORTS = ['minimal', 'low', 'medium', 'high']
+
+/**
+ * How hard a reasoning model thinks before answering. `minimal` was the first
+ * choice for cost and it was wrong: the answers came back in broken Georgian,
+ * with characters from other scripts mixed in and the markdown link rule
+ * ignored. Georgian is a low-resource language for these models and it is the
+ * first thing to degrade when they are told not to think.
+ */
+function pickEffort(): string {
+  const wanted = (process.env.OPENAI_REASONING_EFFORT ?? '').trim()
+  return EFFORTS.includes(wanted) ? wanted : 'low'
+}
+
 /** Ceilings on one turn. The tool loop is capped client-side at 4 rounds; a
  *  round trades ~2 messages, so 24 leaves room for a real conversation. */
 const MAX_MESSAGES = 24
@@ -201,7 +215,7 @@ export async function handleChat(raw: unknown): Promise<ChatResult> {
     // `max_completion_tokens`, not `max_tokens`: the latter is deprecated on
     // Chat Completions and refused outright by the reasoning models.
     max_completion_tokens: reasoning ? MAX_TOKENS + REASONING_HEADROOM : MAX_TOKENS,
-    ...(reasoning ? { reasoning_effort: 'minimal' } : { temperature: 0.2 }),
+    ...(reasoning ? { reasoning_effort: pickEffort() } : { temperature: 0.2 }),
   }
 
   const ask = (body: object) =>

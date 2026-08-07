@@ -44,8 +44,17 @@ function startersFor(role: string | undefined): string[] {
 
 // ── answer rendering ────────────────────────────────────────────────────────
 
-/** `[text](/path)` and `**bold**`, which is all the model is asked to emit. */
-const INLINE = /\[([^\]]+)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*/g
+/**
+ * `[text](/path)` and `**bold**` are what the model is asked to emit — plus a
+ * bare `/map?floor=12`, which it writes anyway. The prompt has asked for
+ * markdown since the beginning and measurement says it is ignored on roughly
+ * one answer in four at any reasoning setting, so the renderer picks the path
+ * up rather than leaving a dead string on screen. `isAppLink` still decides
+ * whether it becomes clickable, so an invented path is no more clickable here
+ * than inside brackets.
+ */
+const INLINE =
+  /\[([^\]]+)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*|(?<![([\w])(\/(?:map|qa|tasks|apartments|standards|schedule|drawings|archive|admin)(?:\/[^\s,;)]+)?(?:\?[^\s,;)]*)?)/g
 
 function Inline({ text, onGo }: { text: string; onGo: (href: string) => void }) {
   const parts: React.ReactNode[] = []
@@ -55,7 +64,10 @@ function Inline({ text, onGo }: { text: string; onGo: (href: string) => void }) 
 
   while ((m = INLINE.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index))
-    const [, label, href, bold] = m
+    const [, mdLabel, mdHref, bold, bare] = m
+    // A bare path is its own label — there is nothing else to call it.
+    const label = mdLabel ?? bare
+    const href = mdHref ?? bare
 
     if (bold) {
       parts.push(

@@ -42,7 +42,11 @@
       "Bash(env)",
       "Read(//tmp/qcchat/**)",
       "Bash(curl -s -X POST \"http://localhost:5173/api/chat\" -H 'Content-Type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"გამარჯობა\"}],\"context\":{\"role\":\"pm\",\"roleName\":\"PM\",\"projectId\":\"NTB\",\"projectName\":\"ნ\",\"today\":\"2026-08-07\"}}')",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('final smoke → ok=',d.get\\('ok'\\),'model=',d.get\\('model'\\)\\)\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('final smoke → ok=',d.get\\('ok'\\),'model=',d.get\\('model'\\)\\)\")",
+      "Bash(git commit -q -m 'feat\\(chat\\): call the OpenAI API directly instead of OpenRouter *)",
+      "Bash(grep -c \"\\\\.env$\")",
+      "Bash(xargs -I{} echo \"tracked .env files: {}\")",
+      "Bash(git push *)"
     ]
   }
 }
