@@ -1,6 +1,6 @@
 // Client half of the assistant. Posts to /api/chat — served by the Vite plugin
 // in `server/plugin.ts` in development and by the serverless function in
-// `api/chat.ts` in production. The OpenRouter key lives there, never here.
+// `api/chat.ts` in production. The OpenAI key lives there, never here.
 //
 // One question is usually more than one request. The model has no database to
 // read, so it answers by asking for data: the server returns `tool_calls`, this

@@ -2,7 +2,7 @@
 //
 // The app is a static SPA with no backend of its own, and these two things
 // genuinely cannot run in the browser: one holds a Resend key, the other an
-// OpenRouter key. Rather than stand up a second process the inspector has to
+// OpenAI key. Rather than stand up a second process the inspector has to
 // remember to start, the handlers ride along on the server that is already
 // running — `npm run dev` is still the whole command.
 //
@@ -90,7 +90,7 @@ const middleware: Connect.NextHandleFunction = (req, res, next) => {
 /** Keys the endpoints need, and what stops working without each. */
 const REQUIRED_KEYS: [key: string, warning: string][] = [
   ['RESEND_API_KEY', '[qc/mail] RESEND_API_KEY არ არის — ხარვეზის შეტყობინება არ გაიგზავნება'],
-  ['OPENROUTER_API_KEY', '[qc/chat] OPENROUTER_API_KEY არ არის — ასისტენტი არ იმუშავებს'],
+  ['OPENAI_API_KEY', '[qc/chat] OPENAI_API_KEY არ არის — ასისტენტი არ იმუშავებს'],
 ]
 
 export function apiPlugin(): Plugin {

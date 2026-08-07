@@ -38,7 +38,11 @@
       "Bash(npx playwright *)",
       "Bash(python3 -)",
       "Bash(cp __TRACKED_VAR__/e2e/tasks.mjs frontend/e2e/tasks.mjs)",
-      "Bash(cp __TRACKED_VAR__/drive-tasks.ts frontend/e2e/api.ts)"
+      "Bash(cp __TRACKED_VAR__/drive-tasks.ts frontend/e2e/api.ts)",
+      "Bash(env)",
+      "Read(//tmp/qcchat/**)",
+      "Bash(curl -s -X POST \"http://localhost:5173/api/chat\" -H 'Content-Type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"გამარჯობა\"}],\"context\":{\"role\":\"pm\",\"roleName\":\"PM\",\"projectId\":\"NTB\",\"projectName\":\"ნ\",\"today\":\"2026-08-07\"}}')",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('final smoke → ok=',d.get\\('ok'\\),'model=',d.get\\('model'\\)\\)\")"
     ]
   }
 }

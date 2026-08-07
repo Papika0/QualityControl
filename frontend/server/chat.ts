@@ -1,9 +1,9 @@
-// POST /api/chat — one turn of the assistant, proxied to OpenRouter.
+// POST /api/chat — one turn of the assistant, against the OpenAI API.
 //
-// This runs on the server for one reason only: the OpenRouter key must never
-// reach the browser. It is otherwise stateless and holds no data — the app has
-// no backend database, so every fact in an answer comes from a tool the
-// *browser* executed against IndexedDB and sent back as a `tool` message. The
+// This runs on the server for one reason only: the OpenAI key must never reach
+// the browser. It is otherwise stateless and holds no data — the app has no
+// backend database, so every fact in an answer comes from a tool the *browser*
+// executed against IndexedDB and sent back as a `tool` message. The
 // conversation therefore round-trips: ask → tool_calls → results → ask again.
 // `src/lib/chat.ts` drives that loop; this file answers one hop of it.
 //
@@ -12,22 +12,29 @@
 
 import { buildSystemPrompt, roleTools, type ChatContext } from './chat-tools.js'
 
-const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
+const ENDPOINT = 'https://api.openai.com/v1/chat/completions'
 
 /**
  * Models this endpoint will call. The client picks nothing — but the client is
  * also the only caller, and the endpoint is unauthenticated, so the allowlist
  * is what stops a tampered request from spending the key on the most expensive
- * model OpenRouter offers.
+ * model in the catalogue.
  */
-const ALLOWED_MODELS = [
-  'openai/gpt-5-mini',
-  'openai/gpt-5',
-  'openai/gpt-4.1-mini',
-  'openai/gpt-4o-mini',
-]
+const ALLOWED_MODELS = ['gpt-5-mini', 'gpt-5', 'gpt-4.1-mini', 'gpt-4o-mini']
 
-const DEFAULT_MODEL = 'openai/gpt-5-mini'
+const DEFAULT_MODEL = 'gpt-5-mini'
+
+/**
+ * The GPT-5 family reasons before it answers, and that costs two things a
+ * gateway used to paper over:
+ *
+ *  - `temperature` other than the default is rejected outright, so it is only
+ *    sent to the non-reasoning models;
+ *  - the hidden reasoning tokens are billed against the completion ceiling, so
+ *    a 700-token cap can be spent thinking and come back empty. These models
+ *    get headroom and the cheapest thinking setting instead.
+ */
+const isReasoning = (model: string) => model.startsWith('gpt-5')
 
 /** Ceilings on one turn. The tool loop is capped client-side at 4 rounds; a
  *  round trades ~2 messages, so 24 leaves room for a real conversation. */
@@ -35,6 +42,8 @@ const MAX_MESSAGES = 24
 const MAX_CHARS = 60_000
 /** Answers here are 2-4 sentences. This is a cost ceiling, not a target. */
 const MAX_TOKENS = 700
+/** Room for the reasoning a GPT-5 model bills against the same ceiling. */
+const REASONING_HEADROOM = 1_300
 /** Vercel gives the function 30s; leave room to return a readable error. */
 const TIMEOUT_MS = 25_000
 
@@ -134,75 +143,117 @@ function parse(raw: unknown): ChatRequest | string {
 
 /** The configured model, or the default when it is unset or not allowed. */
 function pickModel(): string {
-  const wanted = (process.env.OPENROUTER_MODEL ?? '').trim()
+  const wanted = (process.env.OPENAI_MODEL ?? '').trim()
   return wanted && ALLOWED_MODELS.includes(wanted) ? wanted : DEFAULT_MODEL
 }
 
-/** OpenRouter's failures are worth naming — the common ones are all fixable. */
+/** OpenAI's failures are worth naming — the common ones are all fixable. */
 function upstreamError(status: number, message: string): string {
-  if (status === 401 || status === 403) return 'OpenRouter-მა გასაღები არ მიიღო — შეამოწმეთ OPENROUTER_API_KEY'
-  if (status === 402) return 'OpenRouter-ის ბალანსი ამოიწურა'
-  if (status === 429) return 'ძალიან ბევრი მოთხოვნა — სცადეთ რამდენიმე წამში'
-  return message || `OpenRouter შეცდომა (HTTP ${status})`
+  if (status === 401 || status === 403) return 'OpenAI-მ გასაღები არ მიიღო — შეამოწმეთ OPENAI_API_KEY'
+  if (status === 429) {
+    // 429 covers both "too fast" and "out of credit"; only the body tells them
+    // apart, and they need different things done about them.
+    return /quota|billing/i.test(message)
+      ? 'OpenAI-ის ბალანსი ან ლიმიტი ამოიწურა — შეამოწმეთ ბილინგი'
+      : 'ძალიან ბევრი მოთხოვნა — სცადეთ რამდენიმე წამში'
+  }
+  if (status === 404) return message || 'მოდელი მიუწვდომელია ამ გასაღებისთვის'
+  return message || `OpenAI შეცდომა (HTTP ${status})`
 }
 
 export async function handleChat(raw: unknown): Promise<ChatResult> {
   const parsed = parse(raw)
   if (typeof parsed === 'string') return { status: 400, body: { ok: false, error: parsed } }
 
-  const key = process.env.OPENROUTER_API_KEY
+  const key = process.env.OPENAI_API_KEY
   if (!key) {
     return {
       status: 500,
-      body: { ok: false, error: 'OPENROUTER_API_KEY არ არის განსაზღვრული (იხ. frontend/.env)' },
+      body: { ok: false, error: 'OPENAI_API_KEY არ არის განსაზღვრული (იხ. frontend/.env)' },
     }
   }
 
   const model = pickModel()
+  const reasoning = isReasoning(model)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
+  const headers = {
+    Authorization: `Bearer ${key}`,
+    'Content-Type': 'application/json',
+    // Set only when the key belongs to more than one org or project; omitted
+    // otherwise so a stray blank header cannot 401 the request.
+    ...(process.env.OPENAI_ORG_ID ? { 'OpenAI-Organization': process.env.OPENAI_ORG_ID } : {}),
+    ...(process.env.OPENAI_PROJECT_ID ? { 'OpenAI-Project': process.env.OPENAI_PROJECT_ID } : {}),
+  }
+
+  /** The half of the request that is not negotiable — a model, the brief, and
+   *  the tools it answers with. */
+  const core = {
+    model,
+    messages: [{ role: 'system', content: buildSystemPrompt(parsed.context) }, ...parsed.messages],
+    tools: roleTools(parsed.context.role),
+    tool_choice: 'auto',
+  }
+
+  /** The tuning, which is per-family and the part a model may refuse. */
+  const tuning = {
+    // `max_completion_tokens`, not `max_tokens`: the latter is deprecated on
+    // Chat Completions and refused outright by the reasoning models.
+    max_completion_tokens: reasoning ? MAX_TOKENS + REASONING_HEADROOM : MAX_TOKENS,
+    ...(reasoning ? { reasoning_effort: 'minimal' } : { temperature: 0.2 }),
+  }
+
+  const ask = (body: object) =>
+    fetch(ENDPOINT, { method: 'POST', signal: controller.signal, headers, body: JSON.stringify(body) })
+
+  type Payload = {
+    choices?: { message?: ChatMessage; finish_reason?: string }[]
+    error?: { message?: string; param?: string }
+  } | null
+
   try {
-    const res = await fetch(ENDPOINT, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        // OpenRouter's attribution headers — they identify the app on the
-        // dashboard and in rankings. Neither is required to get an answer.
-        'HTTP-Referer': process.env.OPENROUTER_APP_URL || 'http://localhost:5173',
-        'X-Title': process.env.OPENROUTER_APP_TITLE || 'QC Platform',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: buildSystemPrompt(parsed.context) },
-          ...parsed.messages,
-        ],
-        tools: roleTools(parsed.context.role),
-        tool_choice: 'auto',
-        max_tokens: MAX_TOKENS,
-        temperature: 0.2,
-      }),
-    })
+    let res = await ask({ ...core, ...tuning })
+    let payload = (await res.json().catch(() => null)) as Payload
 
-    const payload = (await res.json().catch(() => null)) as {
-      choices?: { message?: ChatMessage }[]
-      error?: { message?: string }
-    } | null
+    // Which tuning parameters a model accepts moves with the model, and the
+    // allowlist here outlives any one of them. A refusal that names a parameter
+    // is answered by dropping the tuning and asking again rather than failing
+    // the turn — the answer is the point, the temperature is not.
+    if (res.status === 400 && /parameter|unsupported|unrecognized/i.test(payload?.error?.message ?? '')) {
+      console.warn('[qc/chat] tuning rejected, retrying without it:', payload?.error?.message)
+      res = await ask(core)
+      payload = (await res.json().catch(() => null)) as Payload
+    }
 
-    // OpenRouter reports some refusals in `error` with a 200 on the wire, the
-    // same way Resend does — so this is checked before the status.
+    // A refusal can arrive in `error` with a 200 on the wire, the same way
+    // Resend does — so this is checked before the status.
     if (payload?.error) {
       return { status: 502, body: { ok: false, error: upstreamError(res.status, payload.error.message ?? '') } }
     }
     if (!res.ok) {
-      return { status: 502, body: { ok: false, error: upstreamError(res.status, '') } }
+      return { status: 502, body: { ok: false, error: upstreamError(res.status, payload?.error?.message ?? '') } }
     }
 
-    const message = payload?.choices?.[0]?.message
-    if (!message) return { status: 502, body: { ok: false, error: 'OpenRouter-მა პასუხი არ დააბრუნა' } }
+    const choice = payload?.choices?.[0]
+    const message = choice?.message
+    if (!message) return { status: 502, body: { ok: false, error: 'OpenAI-მ პასუხი არ დააბრუნა' } }
+
+    // A reasoning model can spend the whole ceiling thinking and stop with
+    // nothing to show. Left alone that renders as an empty bubble, which reads
+    // as a broken app rather than a limit worth raising.
+    if (!message.content && !message.tool_calls?.length) {
+      return {
+        status: 502,
+        body: {
+          ok: false,
+          error:
+            choice?.finish_reason === 'length'
+              ? 'პასუხი ლიმიტს გასცდა — დასვით უფრო კონკრეტული კითხვა'
+              : 'ასისტენტმა ცარიელი პასუხი დააბრუნა — სცადეთ თავიდან',
+        },
+      }
+    }
 
     return {
       status: 200,

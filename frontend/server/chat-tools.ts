@@ -217,7 +217,7 @@ const TOOL_SPECS: { name: ToolName; description: string; parameters: object }[] 
   },
 ]
 
-/** OpenAI-format tool catalogue, as OpenRouter expects it. */
+/** The tool catalogue, in the shape Chat Completions expects. */
 const ALL_TOOLS = TOOL_SPECS.map((t) => ({
   type: 'function' as const,
   function: { name: t.name, description: t.description, parameters: t.parameters },

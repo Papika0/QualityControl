@@ -10,7 +10,7 @@ export default defineConfig({
     tanstackRouter({ target: 'react', autoCodeSplitting: true }),
     react(),
     tailwindcss(),
-    // Serves POST /api/notify-defect and /api/chat — the Resend and OpenRouter
+    // Serves POST /api/notify-defect and /api/chat — the Resend and OpenAI
     // calls, which need keys the browser must never see. See server/plugin.ts.
     apiPlugin(),
   ],
