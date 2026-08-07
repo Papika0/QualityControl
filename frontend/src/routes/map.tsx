@@ -485,8 +485,18 @@ function FloorStrip({ units, mode }: { units: Apartment[]; mode: ColorMode }) {
       {units.map((a) => {
         const fill = cellFill(a, mode, 'sm')
         return (
-          <span key={a.no} className="relative flex-1 bg-soft-2">
+          <span
+            key={a.no}
+            className="relative flex flex-1 items-center justify-center bg-soft-2 @container"
+          >
             <span className={cn('absolute inset-x-0 bottom-0', fill.className)} style={fill.style} />
+            {/* Same thresholds as a desktop cell, and the same reason: a phone
+                gives each unit ~14px and gets none, a tablet ~36px and gets the
+                number. The strip stays a heat overview either way. */}
+            <span className="relative hidden font-mono text-[9px] font-semibold leading-none tabular-nums text-mut-3 @min-[20px]:block">
+              <span className="hidden @min-[32px]:inline">{a.no.slice(0, -2)}</span>
+              {a.no.slice(-2)}
+            </span>
           </span>
         )
       })}
